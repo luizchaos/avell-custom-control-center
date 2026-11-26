@@ -215,6 +215,9 @@ O AvellCC faz "uma cor por zona" assim: `0x14` slot 1 → `0x08 Static color=1` 
 - `kb zones FF0000 00FF00 0000FF FFFFFF` foi aceito: o `0x88` passou a reportar `Static, brilho 50, color=1`.
 - **Confirmado visualmente:** zonas **1→4 = esquerda→direita**, cores corretas. O branco sai branco com a correção
   `(R, 100·G/255, 200·B/255)`, então ela vale para este teclado.
+- **Efeito com paleta confirmado visualmente:** `kb effect wave -s 1 -b 4 -d ltr -c FF0000,00FF00,0000FF`
+  faz a onda andar para a direita. A cor do slot 1 sai na frente, então lendo da esquerda para a direita
+  aparece a paleta invertida e cíclica (…azul, verde, vermelho…). Direção `0` = esquerda→direita, confirmado.
 
 Para voltar ao efeito do vendor (os bytes exatos lidos acima):
 ```powershell
