@@ -1,0 +1,6 @@
+// Curva de uso: silenciosa no ocioso como a da Avell (T1 = 30 %), mas sem o teto de 60 %.
+// Referência: o firmware Gaming chega a ~77 % (≈ 5100 RPM) com a CPU a 84 °C.
+{
+  "name": "office-performance",
+  "duties": [30, 40, 55, 75, 100]
+}

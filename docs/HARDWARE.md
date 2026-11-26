@@ -169,8 +169,41 @@ Presets do vendor no registro (T1..T5, em %):
 
 - Isso explica o teste 1: com `0xA0`, o EC seguiu os T1..T5 que já estavam em `0x743–0x747` (T5 ≈ 60 %), e daí o teto de ~4000 RPM.
 - As **temperaturas** T1..T5 parecem fixas no firmware (limiares de 10 em 10 °C vistos em `0x461`). A curva customizável deste modelo é **5 velocidades em temperaturas fixas**, mais velocidade mínima, temperatura mínima e velocidade extra.
-- **[não verificado]** Valores atuais de `0x743–0x747` e `0x786–0x78A`, e se o firmware aceita T5 acima de 60 %.
-  Próximo passo: `avellcc ec dump 0x700 0x100` (somente leitura).
+#### Dump `0x700–0x7FF` (2026‑11‑26, `0x751 = 0x00`)
+
+```
+       00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
+0700:  00 00 00 00 00 00 00 00 00 00 D2 00 00 00 00 00
+0710:  70 71 71 06 53 D2 70 06 53 D1 70 06 53 81 70 80
+0720:  42 00 04 00 00 00 00 00 00 00 00 00 09 00 00 00
+0730:  78 78 A5 01 64 64 A5 01 00 30 48 00 01 00 00 00
+0740:  0F 00 02 3C 46 50 64 78 81 00 00 00 1F 00 01 B0
+0750:  00 00 6C 00 00 00 00 00 40 00 00 42 41 00 10 00
+0760:  0B 00 00 00 00 E0 83 00 00 00 00 00 00 00 00 00
+0780:  00 00 5D 00 00 00 3C 46 50 64 78 00 04 00 0C 00
+0790:  00 00 00 00 00 00 00 00 00 00 79 D3 10 E4 00 00
+07A0:  00 00 00 00 80 00 08 00 00 00 00 00 00 00 00 00
+07F0:  00 00 00 00 00 00 00 00 00 00 00 13 00 B8 74 4B
+```
+(As linhas `0x770` e `0x7B0–0x7E0` vieram todas zeradas e foram omitidas.)
+
+- `0x743–0x747 = 3C 46 50 64 78` → **T1..T5 = 30/35/40/50/60 %**, igual ao preset `OfficeModeAdvL4` ativo.
+- `0x786–0x78A` = os mesmos valores (defaults MyFan3).
+- `0x79E–0x7A0 = 00 00 00`: velocidade mínima, temperatura mínima e velocidade extra desligadas.
+- `0x730–0x732 = 120/120/165` e `0x734–0x736 = 100/100/165`: PL1/PL2/PL4 (W) Gaming e Office, iguais ao registro.
+
+**Cruzando com o teste 1 (`0x751 = 0xA0`):** os patamares de RPM batem com T1..T5.
+
+| Nível | Duty | RPM | RPM / % |
+|---|---|---|---|
+| T1 | 30 % | ~2050 | 68 |
+| T2 | 35 % | ~2370 | 68 |
+| T3 | 40 % | ~2660 | 66 |
+| T4 | 50 % | ~3240 | 65 |
+| T5 | 60 % | ~3993 | 67 |
+
+**Relação linear, ~67 RPM por %** (projeção de ~6700 RPM a 100 %; o firmware Gaming chegou a ~5100 ≈ 77 %).
+Os limiares de temperatura de cada nível no modo Office ainda vão ser medidos com o indicador de nível `0x460`.
 
 ### Outros
 

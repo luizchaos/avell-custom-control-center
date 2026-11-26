@@ -2,15 +2,20 @@ using AvellCC.Core.Ec;
 
 namespace AvellCC.Core.Fan;
 
-/// <summary>Uma leitura de temperatura e ventoinhas direto do EC (≈ 6 acessos WMI, ~1 s).</summary>
-public readonly record struct FanSample(DateTimeOffset Time, int CpuTemp, int GpuTemp, int Fan1, int Fan2)
+/// <summary>
+/// Uma leitura de temperatura, ventoinhas e nível da curva do firmware direto do EC (≈ 8 acessos WMI, ~1 s).
+/// Level / LevelTemp = 0x460 / 0x461 (nível atual da ventoinha 1 e seu limiar).
+/// </summary>
+public readonly record struct FanSample(DateTimeOffset Time, int CpuTemp, int GpuTemp, int Fan1, int Fan2, int Level = 0, int LevelTemp = 0)
 {
     public static FanSample Read(IEcAccess ec) => new(
         DateTimeOffset.Now,
         ec.Read(EcAddresses.CpuTemp),
         ec.Read(EcAddresses.GpuTemp),
         ec.ReadWord(EcAddresses.Fan1High, EcAddresses.Fan1Low),
-        ec.ReadWord(EcAddresses.Fan2High, EcAddresses.Fan2Low));
+        ec.ReadWord(EcAddresses.Fan2High, EcAddresses.Fan2Low),
+        ec.Read(EcAddresses.Fan1Level),
+        ec.Read(EcAddresses.Fan1LevelTemp));
 }
 
 /// <summary>

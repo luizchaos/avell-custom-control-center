@@ -73,6 +73,13 @@ Start-Service GCUBridge
 - Na restauração, o app grava os bytes crus do original e relê o EC para confirmar que bateu byte a byte.
 - Comando: `avellcc fan restore-original`, e também um botão "Restaurar curva de fábrica" na UI.
 
+**Registradores do Office Mode Advanced**, o mecanismo de curva que este EC realmente obedece:
+- `ec-registers.original.json`: **imutável**, criado na primeira leitura estável, antes da primeira escrita.
+  Contém `0x751`, `0x7A5`, `0x743–0x747` (T1..T5), `0x79E–0x7A0`, com SHA‑256.
+- `ec-registers.<timestamp>.before-<motivo>.json`: snapshot antes de cada escrita.
+- Aplicar: velocidades primeiro, `0x751 = 0xA0` por último. Restaurar: `0x751` primeiro, depois o resto.
+- Comandos: `avellcc fan office backup | trial <curva> | restore-original --yes`.
+
 > Observação: "fábrica" aqui significa **o que estava no EC na primeira vez que o AvellCC leu**.
 > Neste notebook, o original (criado em 2026‑11‑26 10:16) tem a **tabela zerada e o bit 3 de `0x7A5` desligado**,
 > ou seja, o EC estava usando a curva interna do firmware. Restaurar o original devolve o controle a essa curva interna

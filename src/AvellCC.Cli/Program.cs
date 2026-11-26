@@ -39,6 +39,8 @@ static int Ec(string[] args, bool rawBytes)
     using var ec = new WmiEc();
     var store = new FanTableBackupStore();
     var fan = new FanTableService(ec, store, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
+    var officeStore = new EcRegisterBackupStore();
+    var office = new OfficeFanService(ec, officeStore, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
 
     switch (args)
     {
@@ -93,17 +95,97 @@ static int Ec(string[] args, bool rawBytes)
 
         case ["fan", "monitor", ..]:
             var seconds = args.Length > 2 ? int.Parse(args[2], CultureInfo.InvariantCulture) : 60;
-            Console.WriteLine($"Tabela do usuário ativa: {(fan.IsUserTableActive() ? "SIM" : "não (curva interna do firmware)")}");
-            Monitor(ec, TimeSpan.FromSeconds(seconds), levels: null, watchdog: null, rawBytes, CancellationToken.None);
+            Console.WriteLine($"Modo: {office.ReadState().ModeName}");
+            Monitor(ec, TimeSpan.FromSeconds(seconds), expected: null, watchdog: null, rawBytes, CancellationToken.None);
             return 0;
 
         case ["fan", "trial", var curvePath, ..]:
             var duration = args.Length > 3 ? int.Parse(args[3], CultureInfo.InvariantCulture) : 180;
             return Trial(ec, fan, FanCurve.Load(curvePath), TimeSpan.FromSeconds(duration), rawBytes);
 
+        case ["fan", "office", "show"]:
+            PrintOffice(office.ReadState());
+            return 0;
+
+        case ["fan", "office", "backup"]:
+            var (officeOriginal, officeCreated) = office.EnsureOriginalBackup();
+            Console.WriteLine(officeCreated
+                ? $"Backup original dos registradores criado: {officeStore.OriginalPath}"
+                : $"Backup original já existia (de {officeOriginal.CreatedAt:g}), não foi alterado: {officeStore.OriginalPath}");
+            return 0;
+
+        case ["fan", "office", "trial", var officePath, ..]:
+            var officeDuration = args.Length > 4 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 120;
+            return OfficeTrial(ec, office, officeStore, OfficeFanCurve.Load(officePath), TimeSpan.FromSeconds(officeDuration), rawBytes);
+
+        case ["fan", "office", "restore-original", "--yes"]:
+            office.Progress += (done, total) => Console.Write($"\r  gravando {done}/{total}...");
+            office.RestoreOriginal();
+            Console.WriteLine("\nRegistradores originais restaurados e conferidos.");
+            PrintOffice(office.ReadState());
+            return 0;
+
+        case ["fan", "office", "restore-original"]:
+            Console.Error.WriteLine("Isto ESCREVE no EC. Confirme com: avellcc fan office restore-original --yes");
+            return 2;
+
         default:
             return Usage();
     }
+}
+
+static void PrintOffice(OfficeState s)
+{
+    Console.WriteLine($"Modo (0x751)      : 0x{s.FanControl:X2} = {s.ModeName}");
+    Console.WriteLine($"T1..T5 (0x743)    : {string.Join(" / ", s.Duties.Select(d => $"{d}%"))}");
+    Console.WriteLine($"Defaults (0x786)  : {string.Join(" / ", s.DefaultDuties.Select(d => $"{d}%"))}");
+    Console.WriteLine($"Mín/temp/extra    : 0x{s.MinSpeed:X2} / 0x{s.MinTemp:X2} / 0x{s.ExtraSpeed:X2}");
+    Console.WriteLine($"Suporta MyFan3    : {(s.SupportsMyFan3 ? "sim" : "não")}");
+}
+
+static int OfficeTrial(IEcAccess ec, OfficeFanService office, EcRegisterBackupStore store, OfficeFanCurve curve, TimeSpan duration, bool rawBytes)
+{
+    Console.WriteLine($"Curva Office '{curve.Name}': T1..T5 = {string.Join(" / ", curve.Duties.Select(d => $"{d}%"))}  (≈ {string.Join(" / ", curve.Duties.Select(d => $"{d * 67}"))} RPM)");
+    Console.WriteLine("\nEstado antes:");
+    PrintOffice(office.ReadState());
+    Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
+
+    var (_, created) = office.EnsureOriginalBackup();
+    Console.WriteLine(created ? $"Backup original criado: {store.OriginalPath}" : $"Backup original: {store.OriginalPath} (já existia)");
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    office.Progress += (done, total) => Console.Write($"\r  gravando {done}/{total}...");
+
+    Console.WriteLine("Aplicando (velocidades primeiro, depois 0x751 = 0xA0)...");
+    office.Apply(curve);
+    Console.WriteLine("\nAplicado. Monitorando com watchdog. Ctrl+C restaura o original.");
+    PrintOffice(office.ReadState());
+
+    // Nível do firmware (0x460) 1..5 → T1..T5. Fora disso, assume a menor velocidade para o watchdog.
+    (double, double) Expected(FanSample s)
+    {
+        var d = s.Level is >= 1 and <= OfficeFanCurve.Levels ? curve.Duties[s.Level - 1] : curve.Duties[0];
+        return (d, d);
+    }
+    var abort = Monitor(ec, duration, Expected, new FanWatchdog(), rawBytes, cts.Token);
+
+    bool keep;
+    if (abort is not null) { Console.WriteLine($"\n!! WATCHDOG: {abort}"); keep = false; }
+    else if (cts.IsCancellationRequested) { Console.WriteLine("\nCancelado."); keep = false; }
+    else
+    {
+        Console.Write("\nManter esta curva? (pode voltar ao padrão no reboot) [s/N]: ");
+        keep = Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "sim";
+    }
+
+    if (keep) { Console.WriteLine("Curva mantida."); return 0; }
+    Console.WriteLine("Restaurando o original (0x751 primeiro)...");
+    office.RestoreOriginal();
+    Console.WriteLine("\nOriginal restaurado e conferido.");
+    PrintOffice(office.ReadState());
+    Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
+    return abort is null ? 0 : 5;
 }
 
 static int Preview(FanCurve curve)
@@ -136,9 +218,12 @@ static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan dur
     var table = fan.ApplyCurve(curve);
     Console.WriteLine("\nCurva aplicada. Monitorando com watchdog. Ctrl+C restaura o original.");
 
-    var levels = (FanTableEncoder.Decode(table, 0x00), FanTableEncoder.Decode(table, 0x30));
+    var cpuLevels = FanTableEncoder.Decode(table, 0x00);
+    var gpuLevels = FanTableEncoder.Decode(table, 0x30);
     Console.WriteLine($"0x751=0x{ec.Read(EcAddresses.FanControl):X2}  0x7A5=0x{ec.Read(EcAddresses.ApOemByte3):X2}");
-    var abort = Monitor(ec, duration, levels, new FanWatchdog(), rawBytes, cts.Token);
+    var abort = Monitor(ec, duration,
+        s => (FanTableEncoder.ExpectedDuty(cpuLevels, s.CpuTemp), FanTableEncoder.ExpectedDuty(gpuLevels, s.GpuTemp)),
+        new FanWatchdog(), rawBytes, cts.Token);
 
     bool keep;
     if (abort is not null) { Console.WriteLine($"\n!! WATCHDOG: {abort}"); keep = false; }
@@ -158,19 +243,18 @@ static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan dur
 }
 
 /// <summary>Imprime amostras até o fim do tempo. Retorna o motivo de aborto do watchdog, se houver.</summary>
-static string? Monitor(IEcAccess ec, TimeSpan duration, (EncodedLevel[] Cpu, EncodedLevel[] Gpu)? levels, FanWatchdog? watchdog, bool rawBytes, CancellationToken cancel)
+static string? Monitor(IEcAccess ec, TimeSpan duration, Func<FanSample, (double Cpu, double Gpu)>? expected, FanWatchdog? watchdog, bool rawBytes, CancellationToken cancel)
 {
     var end = DateTimeOffset.Now + duration;
     do
     {
         var s = FanSample.Read(ec);
-        var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  GPU {s.GpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
+        var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  GPU {s.GpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}  nível {s.Level} ({s.LevelTemp} °C)";
         if (rawBytes) line += $"  [460..46F] {Convert.ToHexString(ec.ReadRange(0x460, 16))}";
-        if (levels is { } l)
+        if (expected is not null)
         {
-            var cpuDuty = FanTableEncoder.ExpectedDuty(l.Cpu, s.CpuTemp);
-            var gpuDuty = FanTableEncoder.ExpectedDuty(l.Gpu, s.GpuTemp);
-            line += $"  | curva: CPU {cpuDuty,5:0.#}%  GPU {gpuDuty,5:0.#}%";
+            var (cpuDuty, gpuDuty) = expected(s);
+            line += $"  | esperado: {cpuDuty,5:0.#}% ≈ {cpuDuty * 67,5:0} RPM";
             if (watchdog?.Check(s, cpuDuty, gpuDuty) is { } reason) { Console.WriteLine(line); return reason; }
         }
         Console.WriteLine(line);
@@ -224,7 +308,10 @@ static int Usage()
           avellcc fan preview <curva.json>                                      (simula, não grava)
           avellcc status | fan show | fan backup | fan monitor [segundos] [--raw] (admin, só leitura)
           avellcc ec dump <inicio hex> <tamanho hex>                             (admin, só leitura)
-          avellcc fan trial <curva.json> [segundos] [--raw]                     (admin, GRAVA com watchdog)
+          avellcc fan office show | fan office backup                           (admin, só leitura)
+          avellcc fan office trial <office.json> [segundos] [--raw]             (admin, GRAVA com watchdog)
+          avellcc fan office restore-original --yes                             (admin, GRAVA)
+          avellcc fan trial <curva.json> ...   (tabela 0xF00: ignorada por este EC, só referência)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info
           avellcc kb color <RRGGBB> [-b 0-4] [--save] [--raw]

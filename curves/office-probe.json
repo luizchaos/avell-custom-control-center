@@ -1,0 +1,6 @@
+// SONDA Office Advanced: T1 = 70 %. Se o EC seguir 0x743–0x747, as ventoinhas vão para ~4700 RPM mesmo ociosas
+// (hoje ficam em ~2050 RPM = T1 30 %). Também testa se o firmware aceita T5 = 100 %, acima do máximo do vendor (60 %).
+{
+  "name": "office-probe",
+  "duties": [70, 75, 80, 90, 100]
+}
