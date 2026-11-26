@@ -98,6 +98,20 @@ public class FanCurveControllerTests
         Assert.True(c.Step(S(32, 70, 60)).ShouldWrite);
     }
 
+    [Theory]
+    [InlineData(31, 2043)]
+    [InlineData(100, 5543)]
+    [InlineData(120, 5543)]
+    [InlineData(10, 1700)]
+    public void Calibration_matches_measured_points(double duty, int rpm) => Assert.Equal(rpm, FanCalibration.EstimateRpm(duty));
+
+    [Fact]
+    public void Calibration_is_monotonic()
+    {
+        var previous = 0;
+        for (var d = 0; d <= 100; d++) { var r = FanCalibration.EstimateRpm(d); Assert.True(r >= previous); previous = r; }
+    }
+
     [Fact]
     public void Repository_balanced_curve_is_valid_and_reasonable()
     {

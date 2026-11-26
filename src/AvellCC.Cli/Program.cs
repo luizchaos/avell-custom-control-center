@@ -166,7 +166,7 @@ static void PrintDirect(DirectState s)
 static int DirectTrial(IEcAccess ec, DirectFanService direct, EcRegisterBackupStore store, int percent, TimeSpan duration, bool rawBytes)
 {
     DirectFanService.ToRaw(percent); // valida antes de qualquer coisa
-    Console.WriteLine($"Controle direto: as duas ventoinhas em {percent}% (≈ {percent * 67} RPM). Sempre restaura no fim.");
+    Console.WriteLine($"Controle direto: as duas ventoinhas em {percent}% (≈ {FanCalibration.EstimateRpm(percent)} RPM). Sempre restaura no fim.");
     Console.WriteLine("\nEstado antes:");
     PrintDirect(direct.ReadState());
     Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
@@ -246,7 +246,7 @@ static int CurveRun(IEcAccess ec, DirectFanService direct, EcRegisterBackupStore
             }
 
             var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C (ef {d.CpuEffective,5:0.#})  GPU {s.GpuTemp,3} °C (ef {d.GpuEffective,5:0.#})  " +
-                       $"→ {d.Fan1,3}% / {d.Fan2,3}%{(d.ShouldWrite ? "*" : " ")}  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
+                       $"→ {d.Fan1,3}% / {d.Fan2,3}%{(d.ShouldWrite ? "*" : " ")} (≈{FanCalibration.EstimateRpm(d.Fan1),5})  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
             if (d.Reason is not null) line += $"  !! {d.Reason}";
             if (rawBytes) line += $"  duty {ec.Read(EcAddresses.DirectFan1Duty)}/{ec.Read(EcAddresses.DirectFan2Duty)}";
             Console.WriteLine(line);
@@ -273,7 +273,7 @@ static void PrintOffice(OfficeState s)
 
 static int OfficeTrial(IEcAccess ec, OfficeFanService office, EcRegisterBackupStore store, OfficeFanCurve curve, TimeSpan duration, bool rawBytes)
 {
-    Console.WriteLine($"Curva Office '{curve.Name}': T1..T5 = {string.Join(" / ", curve.Duties.Select(d => $"{d}%"))}  (≈ {string.Join(" / ", curve.Duties.Select(d => $"{d * 67}"))} RPM)");
+    Console.WriteLine($"Curva Office '{curve.Name}': T1..T5 = {string.Join(" / ", curve.Duties.Select(d => $"{d}%"))}  (≈ {string.Join(" / ", curve.Duties.Select(d => $"{FanCalibration.EstimateRpm(d)}"))} RPM)");
     Console.WriteLine("\nEstado antes:");
     PrintOffice(office.ReadState());
     Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
@@ -382,7 +382,7 @@ static string? Monitor(IEcAccess ec, TimeSpan duration, Func<FanSample, (double 
         if (expected is not null)
         {
             var (cpuDuty, gpuDuty) = expected(s);
-            line += $"  | esperado: {cpuDuty,5:0.#}% ≈ {cpuDuty * 67,5:0} RPM";
+            line += $"  | esperado: {cpuDuty,5:0.#}% ≈ {FanCalibration.EstimateRpm(cpuDuty),5} RPM";
             if (watchdog?.Check(s, cpuDuty, gpuDuty) is { } reason) { Console.WriteLine(line); return reason; }
         }
         Console.WriteLine(line);

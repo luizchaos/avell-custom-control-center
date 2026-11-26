@@ -239,6 +239,20 @@ Extras:
 - RPM por duty: 30 % ≈ 2050 RPM; 70 % ≈ 4230 RPM. Não é perfeitamente linear (68 → 60 RPM/%). Calibrar com uma varredura depois.
 - Com o duty regravado a cada ~4 s, o EC manteve o valor sem desvio por 60 s.
 
+#### Teste 7 — curva por software `balanced.json` sob carga (11:32–11:35)
+
+O controlador (`fan curve run`) seguiu a curva ponto a ponto. O RPM acompanha o duty com 2 a 3 s de atraso (aceleração das ventoinhas).
+Fez 24 gravações em 3 min (só nas mudanças, mais o keep-alive de 30 s). A histerese segurou as quedas pequenas (58→55 e 64→61 °C).
+A CPU chegou a 86 °C com 100 %. A emergência (92 °C) não foi acionada, e ao encerrar o firmware retomou.
+
+**Calibração duty → RPM (ventoinha 1; a ventoinha 2 fica 0–60 RPM acima):**
+
+| Duty | 31 % | 36 % | 44 % | 50 % | 60 % | 70 % | 76 % | 85 % | 91 % | 94 % | 97 % | 100 % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| RPM | 2043 | 2433 | 2894 | 3240 | 3648 | 4138 | 4515 | 4900 | 5133 | 5265 | 5390 | **5543** |
+
+Não é linear: ~68 RPM/% no começo e ~45 RPM/% no fim. Está codificada em `FanCalibration`, usada só para estimativas.
+
 **Este notebook: `0x78E = 0x0C` (bit 6 = 0), então NÃO tem controle universal.** Isso explica por que as sondas `0xF00` falharam.
 Caminhos restantes, em ordem: **(B)** Office + `0x727` bit 6; **(A)** controle direto `0x1804/0x1809`.
 O caminho (A) significa curva aplicada pelo software (o serviço lê a temperatura e grava o duty), e não pelo firmware.
