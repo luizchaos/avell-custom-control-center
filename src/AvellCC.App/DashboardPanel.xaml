@@ -1,0 +1,125 @@
+<UserControl x:Class="AvellCC.App.DashboardPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AvellCC.App.Localization"
+             xmlns:c="clr-namespace:AvellCC.App.Controls">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="440"/>
+                <ColumnDefinition Width="390"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <!-- Usage rings: CPU + one per GPU, temperature underneath -->
+                <Border Style="{StaticResource Card}">
+                    <ItemsControl x:Name="Gauges">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="6,0">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Subtitle}" ToolTip="{Binding Subtitle}" Style="{StaticResource Caption}"
+                                               HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <c:RingGauge Diameter="116" Value="{Binding Value}" IsAvailable="{Binding IsAvailable}" Margin="0,12" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Footer}" Foreground="{Binding FooterBrush}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding FooterCaption}" Style="{StaticResource Caption}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <!-- Memory and disk -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.memory}"/>
+                            <TextBlock x:Name="MemoryText" Style="{StaticResource Big}" Text="—"/>
+                            <ProgressBar x:Name="MemoryBar" Style="{StaticResource Meter}" Margin="0,6"/>
+                            <TextBlock x:Name="MemoryDetail" Style="{StaticResource Caption}" Text=" "/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.disk}"/>
+                            <TextBlock x:Name="DiskText" Style="{StaticResource Big}" Text="—"/>
+                            <ProgressBar x:Name="DiskBar" Style="{StaticResource Meter}" Margin="0,6"/>
+                            <TextBlock x:Name="DiskDetail" Style="{StaticResource Caption}" Text=" " TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Fans and fan control (from the service) -->
+                <Border Style="{StaticResource Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="1.3*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan1}"/>
+                            <TextBlock x:Name="Fan1Text" FontSize="24" FontWeight="SemiBold" Text="— RPM"/>
+                            <ProgressBar x:Name="Fan1Bar" Style="{StaticResource Meter}" Margin="0,6"/>
+                            <TextBlock x:Name="Fan1Duty" Style="{StaticResource Caption}" Text=" "/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan2}"/>
+                            <TextBlock x:Name="Fan2Text" FontSize="24" FontWeight="SemiBold" Text="— RPM"/>
+                            <ProgressBar x:Name="Fan2Bar" Style="{StaticResource Meter}" Margin="0,6"/>
+                            <TextBlock x:Name="Fan2Duty" Style="{StaticResource Caption}" Text=" "/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.control}"/>
+                            <TextBlock x:Name="ModeText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Text="—"/>
+                            <TextBlock x:Name="MessageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Text=""/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <!-- System list -->
+            <Border Grid.Column="1" Style="{StaticResource Card}" VerticalAlignment="Top" Padding="0,12">
+                <StackPanel>
+                    <TextBlock Text="{l:Tr dash.system}" FontWeight="SemiBold" Margin="16,0,16,8"/>
+                    <ItemsControl x:Name="Rows" AlternationCount="2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="Row" Padding="16,8">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" MaxWidth="150"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" ToolTip="{Binding Value}" TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                        <ProgressBar Style="{StaticResource Meter}" Value="{Binding Percent}" Height="4" Margin="0,6,0,0"
+                                                     Visibility="{Binding MeterVisibility}"/>
+                                    </StackPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                        <Setter TargetName="Row" Property="Background" Value="#262A32"/>
+                                    </Trigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
