@@ -1,0 +1,264 @@
+<Window x:Class="AvellCC.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AvellCC" Width="1040" Height="720" MinWidth="820" MinHeight="560"
+        Background="{StaticResource Bg}" WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource Panel}"/>
+            <Setter Property="RowBackground" Value="#2A2E36"/>
+            <Setter Property="AlternatingRowBackground" Value="#252830"/>
+            <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
+            <Setter Property="GridLinesVisibility" Value="None"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="True"/>
+            <Setter Property="CanUserSortColumns" Value="False"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="Height" Value="200"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#2E323B"/>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+        <Style x:Key="Secondary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#2E323B"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Cabeçalho -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" Padding="20,12" BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
+            <Grid>
+                <StackPanel>
+                    <TextBlock Text="AvellCC" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="MachineText" Style="{StaticResource Caption}" Text="conectando ao serviço…"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="{StaticResource Muted}" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="StatusText" Text="—" FontSize="14"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Aviso (serviço indisponível, emergência, vendor rodando...) -->
+        <Border x:Name="Banner" DockPanel.Dock="Top" Visibility="Collapsed" Background="{StaticResource Warn}" Padding="20,8">
+            <TextBlock x:Name="BannerText" Foreground="#16181D" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        </Border>
+
+        <TabControl Margin="12" Background="{StaticResource Bg}" BorderThickness="0">
+
+            <!-- ============ PAINEL ============ -->
+            <TabItem Header="  Painel  ">
+                <WrapPanel Margin="8">
+                    <Border Style="{StaticResource Card}" Width="220">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="CPU (EC)"/>
+                            <TextBlock x:Name="CpuText" Style="{StaticResource Big}" Text="— °C"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Width="220">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="GPU (EC)"/>
+                            <TextBlock x:Name="GpuText" Style="{StaticResource Big}" Text="— °C"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Width="220">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="Ventoinha 1"/>
+                            <TextBlock x:Name="Fan1Text" Style="{StaticResource Big}" Text="— RPM"/>
+                            <TextBlock x:Name="Fan1Duty" Style="{StaticResource Caption}" Text="—"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Width="220">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="Ventoinha 2"/>
+                            <TextBlock x:Name="Fan2Text" Style="{StaticResource Big}" Text="— RPM"/>
+                            <TextBlock x:Name="Fan2Duty" Style="{StaticResource Caption}" Text="—"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Width="456">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="Controle das ventoinhas"/>
+                            <TextBlock x:Name="ModeText" FontSize="22" FontWeight="SemiBold" Text="—"/>
+                            <TextBlock x:Name="MessageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Text=""/>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+            </TabItem>
+
+            <!-- ============ VENTOINHAS ============ -->
+            <TabItem Header="  Ventoinhas  ">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="400"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Modo" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <RadioButton x:Name="FirmwareRadio" Content="Firmware (padrão)" GroupName="FanMode"/>
+                                        <RadioButton x:Name="CurveRadio" Content="Curva do AvellCC" GroupName="FanMode"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="CurveCombo" DisplayMemberPath="Name" Margin="0,0,0,8" SelectionChanged="CurveCombo_SelectionChanged"/>
+                                    <Button Content="Aplicar modo" HorizontalAlignment="Left" Click="ApplyMode_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Editar curva" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="60"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Label Content="Nome"/>
+                                        <TextBox x:Name="NameBox" Grid.Column="1" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                        <Label Grid.Column="2" Content="Histerese °C"/>
+                                        <TextBox x:Name="HysteresisBox" Grid.Column="3" VerticalContentAlignment="Center" Text="4"/>
+                                    </Grid>
+                                    <CheckBox x:Name="SharedCheck" Content="Ventoinhas juntas (maior valor entre CPU e GPU)" IsChecked="True" Margin="0,0,0,8" Click="Editor_Changed"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource Caption}" Text="CPU (°C → %)"/>
+                                            <DataGrid x:Name="CpuGrid" CellEditEnding="Grid_CellEditEnding">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="°C" Binding="{Binding Temp}" Width="*"/>
+                                                    <DataGridTextColumn Header="%" Binding="{Binding Duty}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <Button Content="+ ponto" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddCpuPoint_Click"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{StaticResource Caption}" Text="GPU (°C → %)"/>
+                                            <DataGrid x:Name="GpuGrid" CellEditEnding="Grid_CellEditEnding">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="°C" Binding="{Binding Temp}" Width="*"/>
+                                                    <DataGridTextColumn Header="%" Binding="{Binding Duty}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <Button Content="+ ponto" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddGpuPoint_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8"
+                                               Text="Regras: temperaturas crescentes, % nunca diminui, último ponto até 90 °C com pelo menos 80 %. Mínimo efetivo 25 % (a ventoinha nunca para). Del remove a linha selecionada."/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Salvar curva" Click="SaveCurve_Click"/>
+                                        <Button Content="Descartar alterações" Style="{StaticResource Secondary}" Click="ReloadCurve_Click"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                <Rectangle Width="14" Height="3" Fill="#3B82F6" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="CPU" Margin="0,0,16,0"/>
+                                <Rectangle Width="14" Height="3" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="GPU" Margin="0,0,16,0"/>
+                                <TextBlock Style="{StaticResource Caption}" Text="linhas verticais = temperatura atual · ponto = duty atual" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Canvas x:Name="ChartCanvas" ClipToBounds="True" SizeChanged="ChartCanvas_SizeChanged"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ============ TECLADO ============ -->
+            <TabItem Header="  Teclado  ">
+                <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Iluminação do teclado (4 zonas)" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Label Content="Modo"/>
+                                <ComboBox x:Name="KbModeCombo" Grid.Column="1" Margin="0,0,0,10" SelectionChanged="KbMode_SelectionChanged">
+                                    <ComboBoxItem Content="Cor única" Tag="static"/>
+                                    <ComboBoxItem Content="Uma cor por zona" Tag="zones"/>
+                                    <ComboBoxItem Content="Efeito" Tag="effect"/>
+                                    <ComboBoxItem Content="Desligado" Tag="off"/>
+                                </ComboBox>
+
+                                <Label Grid.Row="1" Content="Cores"/>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button x:Name="Zone1Button" Width="56" Height="32" Click="Zone_Click" Tag="0" ToolTip="Zona 1 (esquerda) / cor 1"/>
+                                    <Button x:Name="Zone2Button" Width="56" Height="32" Click="Zone_Click" Tag="1" ToolTip="Zona 2 / cor 2"/>
+                                    <Button x:Name="Zone3Button" Width="56" Height="32" Click="Zone_Click" Tag="2" ToolTip="Zona 3 / cor 3"/>
+                                    <Button x:Name="Zone4Button" Width="56" Height="32" Click="Zone_Click" Tag="3" ToolTip="Zona 4 (direita) / cor 4"/>
+                                </StackPanel>
+
+                                <Label Grid.Row="2" Content="Brilho"/>
+                                <Slider x:Name="KbBrightness" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="3" Margin="0,0,0,10"/>
+
+                                <Label Grid.Row="3" Content="Efeito"/>
+                                <ComboBox x:Name="KbEffectCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10"/>
+
+                                <Label Grid.Row="4" Content="Velocidade"/>
+                                <Slider x:Name="KbSpeed" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="2" Margin="0,0,0,10"/>
+
+                                <Label Grid.Row="5" Content="Direção"/>
+                                <ComboBox x:Name="KbDirectionCombo" Grid.Row="5" Grid.Column="1" Margin="0,0,0,10">
+                                    <ComboBoxItem Content="Esquerda → direita" Tag="LeftToRight"/>
+                                    <ComboBoxItem Content="Direita → esquerda" Tag="RightToLeft"/>
+                                    <ComboBoxItem Content="Baixo → cima" Tag="BottomToTop"/>
+                                    <ComboBoxItem Content="Cima → baixo" Tag="TopToBottom"/>
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock x:Name="KbHint" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <Button Content="Aplicar no teclado" HorizontalAlignment="Left" Click="ApplyKeyboard_Click"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ============ CONFIGURAÇÕES ============ -->
+            <TabItem Header="  Configurações  ">
+                <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="StartupCheck" Content="Abrir o AvellCC na bandeja ao entrar no Windows" Click="StartupCheck_Click"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0"
+                                       Text="O serviço AvellCC inicia sozinho com o Windows e controla as ventoinhas mesmo com esta janela fechada."/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Sobre" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <TextBlock x:Name="AboutText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

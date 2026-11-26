@@ -37,12 +37,15 @@ catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 1; }
 static int Ec(string[] args, bool rawBytes)
 {
     using var ec = new WmiEc();
+    // Regra 1 também vale para o nosso serviço: com ele rodando, a CLI não grava no EC.
+    static string[] Busy() =>
+        [.. VendorGuard.RunningVendorProcesses(), .. System.Diagnostics.Process.GetProcessesByName("AvellCC.Service").Length > 0 ? ["AvellCC.Service (pare o serviço AvellCC)"] : Array.Empty<string>()];
     var store = new FanTableBackupStore();
-    var fan = new FanTableService(ec, store, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
+    var fan = new FanTableService(ec, store, ReadMachineInfo(ec), Busy);
     var officeStore = new EcRegisterBackupStore(name: OfficeFanService.BackupGroup);
-    var office = new OfficeFanService(ec, officeStore, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
+    var office = new OfficeFanService(ec, officeStore, ReadMachineInfo(ec), Busy);
     var directStore = new EcRegisterBackupStore(name: DirectFanService.BackupGroup);
-    var direct = new DirectFanService(ec, directStore, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
+    var direct = new DirectFanService(ec, directStore, ReadMachineInfo(ec), Busy);
 
     switch (args)
     {
@@ -145,6 +148,7 @@ static int Ec(string[] args, bool rawBytes)
             return CurveRun(ec, direct, directStore, FanCurve.Load(runCurvePath), runSeconds, rawBytes);
 
         case ["fan", "direct", "off", "--yes"]:
+            if (Busy() is { Length: > 0 } busy) throw new VendorRunningException(busy);
             direct.Disable();
             Console.WriteLine("0x751 devolvido ao original (sem full fan mode).");
             PrintDirect(direct.ReadState());

@@ -21,6 +21,7 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
     public static readonly ushort[] TrackedRegisters = [EcAddresses.FanControl, EcAddresses.DirectFan1Duty, EcAddresses.DirectFan2Duty];
 
     private byte? _originalFanControl;
+    private bool _snapshotSaved;
 
     public bool Active => _originalFanControl is not null;
 
@@ -50,15 +51,23 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         return (created ? snapshot : store.LoadOriginal(), created);
     }
 
-    public void Enable(int fan1Percent, int fan2Percent)
+    /// <param name="takeOver">
+    /// true = aceita o bit 6 já ligado. É o caso do serviço reiniciando depois de uma queda, com o controle direto
+    /// que ele mesmo deixou ativo. Só é seguro com o vendor parado, e isso é conferido antes.
+    /// </param>
+    public void Enable(int fan1Percent, int fan2Percent, bool takeOver = false)
     {
         var running = vendorRunning();                 // Regra 1
         if (running.Length > 0) throw new VendorRunningException(running);
         var (original, _) = EnsureOriginalBackup();    // Regra 2
-        store.SaveSnapshot(EcRegisterSnapshot.From(ReadTracked(), machine(), vendorRunning(), "AvellCC/before-direct"), "before-direct");
+        if (!_snapshotSaved)
+        {
+            store.SaveSnapshot(EcRegisterSnapshot.From(ReadTracked(), machine(), vendorRunning(), "AvellCC/before-direct"), "before-direct");
+            _snapshotSaved = true;
+        }
 
         var current = ec.Read(EcAddresses.FanControl);
-        if ((current & EcAddresses.FullFanModeBit) != 0)
+        if ((current & EcAddresses.FullFanModeBit) != 0 && !takeOver)
             throw new InvalidOperationException($"0x751 já está com o bit 6 ligado (0x{current:X2}): outro controle ativo?");
         _originalFanControl = original.Values()[EcAddresses.FanControl];
 

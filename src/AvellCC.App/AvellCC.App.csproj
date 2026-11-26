@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>AvellCC</AssemblyName>
+    <RootNamespace>AvellCC.App</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Version>0.4.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WinForms só para NotifyIcon e ColorDialog: sem usings globais, para não conflitar com WPF -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AvellCC.Ipc\AvellCC.Ipc.csproj" />
+  </ItemGroup>
+</Project>

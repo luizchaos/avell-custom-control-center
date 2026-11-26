@@ -119,6 +119,24 @@ Toda curva passa pelo validador do Core antes de chegar ao EC:
 - duty não-decrescente; duty do último nível ≥ 80 %; nenhuma temperatura acima de 100 °C;
 - verificação *read-back* depois de gravar. Se divergir, o app restaura o snapshot anterior.
 
+## Serviço e UI (M4)
+
+| Peça | Detalhe |
+|---|---|
+| Serviço `AvellCC` | LocalSystem, início automático; recovery: reinicia em 2 s / 5 s / 10 s (`sc failure`) |
+| Loop | `FanControlLoop.Tick()` a cada 2 s (~11 leituras WMI, ~1,3 s) |
+| Energia | `PowerAwareServiceLifetime`: suspender → firmware; retomar → reassume e reaplica o teclado |
+| Queda e reinício | se o `0x751` bit 6 ficou ligado: no modo curva o serviço reassume (`takeOver`); no modo firmware ele libera |
+| Estado | `C:\ProgramData\AvellCC\settings.json` (gravação atômica), `curves\*.json` (presets só criados se ausentes) |
+| IPC | pipe `AvellCC.Control`, uma linha JSON por mensagem. ACL: SYSTEM e Administradores (total), INTERACTIVE (leitura/escrita) |
+| Validação | o serviço valida toda curva e configuração de teclado; a UI também, para dar o erro antes |
+| UI | `AvellCC.exe`: Painel, Ventoinhas (modo + editor com gráfico), Teclado, Configurações; fechar = bandeja |
+| CLI | os comandos de escrita recusam se `AvellCC.Service` estiver rodando (a Regra 1 vale para nós também) |
+
+**Segurança do pipe:** qualquer usuário logado na máquina pode trocar a curva e o RGB, mas não pode passar
+dos limites validados pelo serviço (mínimo de 25 %, último ponto até 90 °C com ≥ 80 %, emergência). Para um notebook pessoal,
+é aceitável. Se precisar restringir, troque INTERACTIVE pelo SID do usuário em `PipeServer`.
+
 ## Fases
 
 | Fase | Entrega | Escreve no hardware? |
@@ -127,5 +145,5 @@ Toda curva passa pelo validador do Core antes de chegar ao EC:
 | M1 | Teclado RGB: cor por zona, brilho, efeitos de firmware | HID |
 | M2 | Telemetria: RPM, temperatura do EC, dashboard | Não |
 | M3 | Curva customizada no EC, com backup, validação e restore | EC |
-| M4 | Serviço Windows + UI WPF + tray + início automático | — |
+| M4 | Serviço Windows + UI WPF + tray + início automático (implementado; instalação pendente de teste no hardware) | — |
 | M5 | Perfis (AC/bateria, por app), atalhos | — |
