@@ -39,8 +39,10 @@ static int Ec(string[] args, bool rawBytes)
     using var ec = new WmiEc();
     var store = new FanTableBackupStore();
     var fan = new FanTableService(ec, store, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
-    var officeStore = new EcRegisterBackupStore();
+    var officeStore = new EcRegisterBackupStore(name: OfficeFanService.BackupGroup);
     var office = new OfficeFanService(ec, officeStore, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
+    var directStore = new EcRegisterBackupStore(name: DirectFanService.BackupGroup);
+    var direct = new DirectFanService(ec, directStore, ReadMachineInfo(ec), VendorGuard.RunningVendorProcesses);
 
     switch (args)
     {
@@ -129,14 +131,77 @@ static int Ec(string[] args, bool rawBytes)
             Console.Error.WriteLine("Isto ESCREVE no EC. Confirme com: avellcc fan office restore-original --yes");
             return 2;
 
+        case ["fan", "direct", "show"]:
+            PrintDirect(direct.ReadState());
+            return 0;
+
+        case ["fan", "direct", "trial", var percentText, ..]:
+            var percent = int.Parse(percentText, CultureInfo.InvariantCulture);
+            var directDuration = args.Length > 4 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 60;
+            return DirectTrial(ec, direct, directStore, percent, TimeSpan.FromSeconds(directDuration), rawBytes);
+
+        case ["fan", "direct", "off", "--yes"]:
+            direct.Disable();
+            Console.WriteLine("0x751 devolvido ao original (sem full fan mode).");
+            PrintDirect(direct.ReadState());
+            return 0;
+
         default:
             return Usage();
     }
 }
 
+static void PrintDirect(DirectState s)
+{
+    Console.WriteLine($"0x751 (modo)          : 0x{s.FanControl:X2}  full fan mode (bit 6): {(s.FullFanMode ? "LIGADO" : "desligado")}");
+    Console.WriteLine($"0x1804 / 0x1809 (duty): {s.Fan1DutyRaw} / {s.Fan2DutyRaw}  (= {s.Fan1DutyRaw / 2.0:0.#}% / {s.Fan2DutyRaw / 2.0:0.#}%)");
+    Console.WriteLine($"0x78E (status)        : 0x{s.FanCtrlStatus:X2}  controle universal (bit 6): {(s.HasUniversalControl ? "sim" : "não")}");
+    Console.WriteLine($"0x727 (custom profile): 0x{s.CustomProfile:X2}");
+}
+
+static int DirectTrial(IEcAccess ec, DirectFanService direct, EcRegisterBackupStore store, int percent, TimeSpan duration, bool rawBytes)
+{
+    DirectFanService.ToRaw(percent); // valida antes de qualquer coisa
+    Console.WriteLine($"Controle direto: as duas ventoinhas em {percent}% (≈ {percent * 67} RPM). Sempre restaura no fim.");
+    Console.WriteLine("\nEstado antes:");
+    PrintDirect(direct.ReadState());
+    Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
+
+    var (_, created) = direct.EnsureOriginalBackup();
+    Console.WriteLine(created ? $"Backup original criado: {store.OriginalPath}" : $"Backup original: {store.OriginalPath} (já existia)");
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    string? abort = null;
+    try
+    {
+        Console.WriteLine("Ligando (duty → 0x751 bit 6 → duty de novo)...");
+        direct.Enable(percent, percent);
+        PrintDirect(direct.ReadState());
+        var end = DateTimeOffset.Now + duration;
+        var watchdog = new FanWatchdog();
+        while (DateTimeOffset.Now < end && !cts.IsCancellationRequested && abort is null)
+        {
+            direct.SetDuty(percent, percent);                 // regrava a cada ciclo
+            abort = Monitor(ec, TimeSpan.Zero, _ => (percent, percent), watchdog, rawBytes, cts.Token);
+            cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(1));
+        }
+    }
+    finally
+    {
+        Console.WriteLine(abort is not null ? $"\n!! WATCHDOG: {abort}" : cts.IsCancellationRequested ? "\nCancelado." : "\nFim do teste.");
+        Console.WriteLine("Desligando o controle direto (0x751 → original)...");
+        direct.Disable();
+        PrintDirect(direct.ReadState());
+        Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
+    }
+    return abort is null ? 0 : 5;
+}
+
 static void PrintOffice(OfficeState s)
 {
     Console.WriteLine($"Modo (0x751)      : 0x{s.FanControl:X2} = {s.ModeName}");
+    Console.WriteLine($"Custom profile    : 0x727 = 0x{s.CustomProfile:X2} (bit 6 {(((s.CustomProfile & 0x40) != 0) ? "ligado" : "desligado")})");
     Console.WriteLine($"T1..T5 (0x743)    : {string.Join(" / ", s.Duties.Select(d => $"{d}%"))}");
     Console.WriteLine($"Defaults (0x786)  : {string.Join(" / ", s.DefaultDuties.Select(d => $"{d}%"))}");
     Console.WriteLine($"Mín/temp/extra    : 0x{s.MinSpeed:X2} / 0x{s.MinTemp:X2} / 0x{s.ExtraSpeed:X2}");
@@ -250,7 +315,7 @@ static string? Monitor(IEcAccess ec, TimeSpan duration, Func<FanSample, (double 
     {
         var s = FanSample.Read(ec);
         var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  GPU {s.GpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}  nível {s.Level} ({s.LevelTemp} °C)";
-        if (rawBytes) line += $"  [460..46F] {Convert.ToHexString(ec.ReadRange(0x460, 16))}";
+        if (rawBytes) line += $"  duty {ec.Read(EcAddresses.DirectFan1Duty),3}/{ec.Read(EcAddresses.DirectFan2Duty),3}  [460..46F] {Convert.ToHexString(ec.ReadRange(0x460, 16))}";
         if (expected is not null)
         {
             var (cpuDuty, gpuDuty) = expected(s);
@@ -311,6 +376,9 @@ static int Usage()
           avellcc fan office show | fan office backup                           (admin, só leitura)
           avellcc fan office trial <office.json> [segundos] [--raw]             (admin, GRAVA com watchdog)
           avellcc fan office restore-original --yes                             (admin, GRAVA)
+          avellcc fan direct show                                               (admin, só leitura)
+          avellcc fan direct trial <percent 25-100> [segundos] [--raw]          (admin, GRAVA, sempre restaura)
+          avellcc fan direct off --yes                                          (admin, desliga o controle direto)
           avellcc fan trial <curva.json> ...   (tabela 0xF00: ignorada por este EC, só referência)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info

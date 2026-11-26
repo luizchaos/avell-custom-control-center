@@ -17,6 +17,9 @@ public sealed record OfficeFanCurve
     [JsonPropertyName("name")] public string Name { get; init; } = "office";
     [JsonPropertyName("duties")] public int[] Duties { get; init; } = [];
 
+    /// <summary>Liga 0x727 bit 6 ("custom profile mode", tuxedo-drivers) junto com o modo Office.</summary>
+    [JsonPropertyName("customProfile")] public bool CustomProfile { get; init; }
+
     private static readonly JsonSerializerOptions Json = new() { ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
     public static OfficeFanCurve Load(string path)

@@ -18,10 +18,13 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
     private static readonly ushort[] PwmRegisters =
         Enumerable.Range(EcAddresses.OfficeAdvPwmStart, EcAddresses.OfficeAdvPwmCount).Select(a => (ushort)a).ToArray();
 
+    /// <summary>Nome do grupo de backup (v2 inclui 0x727; o grupo antigo "ec-registers" fica como histórico).</summary>
+    public const string BackupGroup = "ec-office";
+
     /// <summary>Tudo que entra no backup. A ordem de restauração começa pelo modo.</summary>
     public static readonly ushort[] TrackedRegisters =
     [
-        EcAddresses.FanControl, EcAddresses.ApOemByte3,
+        EcAddresses.FanControl, EcAddresses.CustomProfile, EcAddresses.ApOemByte3,
         EcAddresses.OfficeAdvMinSpeed, EcAddresses.OfficeAdvMinTemp, EcAddresses.OfficeAdvExtraSpeed,
         .. PwmRegisters,
     ];
@@ -33,7 +36,8 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         OfficeFanCurve.FromRaw(ec.ReadRange(EcAddresses.OfficeAdvPwmStart, EcAddresses.OfficeAdvPwmCount)),
         OfficeFanCurve.FromRaw(ec.ReadRange(EcAddresses.OfficeAdvPwmDefaultStart, EcAddresses.OfficeAdvPwmCount)),
         ec.Read(EcAddresses.OfficeAdvMinSpeed), ec.Read(EcAddresses.OfficeAdvMinTemp), ec.Read(EcAddresses.OfficeAdvExtraSpeed),
-        (ec.Read(EcAddresses.BiosOemByte2) & 0x08) != 0);
+        (ec.Read(EcAddresses.BiosOemByte2) & 0x08) != 0,
+        ec.Read(EcAddresses.CustomProfile));
 
     /// <summary>Lê os registradores duas vezes; só aceita se forem iguais.</summary>
     public EcRegisterSnapshot ReadStable(string createdBy)
@@ -61,6 +65,8 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         WriteGuarded($"office-{curve.Name}", () =>
         {
             WriteVerified(PwmRegisters.Select(a => (a, target[a])));                 // velocidades primeiro
+            if (curve.CustomProfile)
+                WriteVerified([(EcAddresses.CustomProfile, (byte)(ec.Read(EcAddresses.CustomProfile) | EcAddresses.CustomProfileBit))]);
             WriteVerified([(EcAddresses.FanControl, OfficeAdvancedMode)]);           // modo por último
         });
     }
@@ -110,7 +116,7 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
     private Dictionary<ushort, byte> ReadTracked() => TrackedRegisters.ToDictionary(a => a, ec.Read);
 }
 
-public sealed record OfficeState(byte FanControl, int[] Duties, int[] DefaultDuties, byte MinSpeed, byte MinTemp, byte ExtraSpeed, bool SupportsMyFan3)
+public sealed record OfficeState(byte FanControl, int[] Duties, int[] DefaultDuties, byte MinSpeed, byte MinTemp, byte ExtraSpeed, bool SupportsMyFan3, byte CustomProfile = 0)
 {
     public bool OfficeAdvancedActive => FanControl == OfficeFanService.OfficeAdvancedMode;
 

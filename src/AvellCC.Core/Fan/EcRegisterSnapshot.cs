@@ -48,13 +48,16 @@ public sealed record EcRegisterSnapshot
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join(";", registers.Select(kv => $"{kv.Key}={kv.Value}")))));
 }
 
-/// <summary>Backups de registradores. ec-registers.original.json é criado UMA vez e nunca é sobrescrito.</summary>
-public sealed class EcRegisterBackupStore(string? directory = null)
+/// <summary>
+/// Backups de um grupo de registradores. &lt;name&gt;.original.json é criado UMA vez e nunca é sobrescrito.
+/// Cada mecanismo tem o seu grupo ("ec-office", "ec-direct"), para que um conjunto novo de registradores
+/// tenha o próprio original lido antes da primeira escrita.
+/// </summary>
+public sealed class EcRegisterBackupStore(string? directory = null, string name = "ec-registers")
 {
-    public const string OriginalFileName = "ec-registers.original.json";
-
+    public string Name { get; } = name;
     public string Directory { get; } = directory ?? BackupFiles.DefaultDirectory;
-    public string OriginalPath => Path.Combine(Directory, OriginalFileName);
+    public string OriginalPath => Path.Combine(Directory, $"{Name}.original.json");
     public bool HasOriginal => File.Exists(OriginalPath);
 
     public EcRegisterSnapshot LoadOriginal()
@@ -73,6 +76,6 @@ public sealed class EcRegisterBackupStore(string? directory = null)
     public string SaveSnapshot(EcRegisterSnapshot snapshot, string reason)
     {
         snapshot.Validate();
-        return BackupFiles.SaveTimestamped(Directory, "ec-registers", snapshot.CreatedAt, reason, snapshot);
+        return BackupFiles.SaveTimestamped(Directory, Name, snapshot.CreatedAt, reason, snapshot);
     }
 }

@@ -203,7 +203,30 @@ Presets do vendor no registro (T1..T5, em %):
 | T5 | 60 % | ~3993 | 67 |
 
 **Relação linear, ~67 RPM por %** (projeção de ~6700 RPM a 100 %; o firmware Gaming chegou a ~5100 ≈ 77 %).
-Os limiares de temperatura de cada nível no modo Office ainda vão ser medidos com o indicador de nível `0x460`.
+
+#### Teste 4 — Office Advanced com T1..T5 = 70/75/80/90/100 % (11:15–11:17)
+
+Gravado e conferido (`0x743–0x747 = 8C 96 A0 B4 C8`, `0x751 = 0xA0`), e mesmo assim o nível 1 ficou em **~2043 RPM = 30 %**.
+O EC **não lê `0x743–0x747`** nesse estado. Os patamares de 30..60 % do teste 1 batem também com os defaults em `0x786–0x78A`.
+Além disso, o `UpdateAdvPwms` do vendor limita T1..T5 entre o primeiro e o último default (30–60 %), e o
+"Fan Speed Curve" do app (`UserSet_FanSpeedCurveSetting`) edita a tabela `0xF00`, que este EC ignora.
+
+### Referência: driver Linux da Tuxedo (`tuxedo-drivers`, `uniwill_keyboard.h` / `tuxedo_io.c`)
+
+| Mecanismo | Registradores | Condição |
+|---|---|---|
+| **Controle universal** (tabelas `0xF00`) | liga com `0x7C5` bit 7 + `0x7C6` bit 2 | `0x78E` bit 6 = 1 |
+| **Controle direto (legado)** | `0x751` bit 6 ("full fan mode") + duty em **`0x1804`** (ventoinha 0) / **`0x1809`** (ventoinha 1), 0..200 | EC sem controle universal |
+| Curva manual (profile v1) | `0x743–0x747` (copiada de `0x786–0x78A`) + `0x727` bit 6 (custom profile) + `0x741 = 1` (manual) | só alguns modelos |
+| Perfis | `0x751`: `0xA0` powersave, `0x00` enthusiast, `0x10` overboost | — |
+
+Regras de segurança da Tuxedo: **nunca gravar duty 0** (0 = 30 % por 3 min e depois para; 1 = para), mínimo de 25 %,
+máximo `0xC8`. No modo direto, eles regravam `0x1804/0x1809` várias vezes logo depois de ligar o bit 6, "antes do ramp-up completo",
+e repetem a cada 50 min.
+
+**Este notebook: `0x78E = 0x0C` (bit 6 = 0), então NÃO tem controle universal.** Isso explica por que as sondas `0xF00` falharam.
+Caminhos restantes, em ordem: **(B)** Office + `0x727` bit 6; **(A)** controle direto `0x1804/0x1809`.
+O caminho (A) significa curva aplicada pelo software (o serviço lê a temperatura e grava o duty), e não pelo firmware.
 
 ### Outros
 

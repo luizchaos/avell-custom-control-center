@@ -42,6 +42,16 @@ public static class EcAddresses
     public const ushort OfficeAdvExtraSpeed = 0x7A0;
     public const ushort BiosOemByte2 = 0x782;        // bit 3 = suporta MyFan3; bit 2 = tipo de tabela office
 
+    // Referência: tuxedo-drivers (Linux), uniwill_keyboard.h / tuxedo_io.c
+    public const ushort CustomProfile = 0x727;       // bit 6 = custom profile mode (curva manual 0x743 em alguns modelos)
+    public const byte CustomProfileBit = 0x40;
+    public const ushort FanCtrlStatus = 0x78E;       // bit 6 = controle universal do EC (tabelas 0xF00). Aqui = 0x0C → não tem
+    public const byte UniversalFanCtrlBit = 0x40;
+    public const ushort DirectFan1Duty = 0x1804;     // controle direto (legado): duty 0..200 da ventoinha 1
+    public const ushort DirectFan2Duty = 0x1809;     // idem ventoinha 2
+    public const byte FullFanModeBit = 0x40;         // 0x751 bit 6: "full fan mode", necessário para o controle direto
+    public const byte MaxDutyRaw = 0xC8;             // 200 = 100 %
+
     // Ventoinhas — modo
     public const ushort FanControl = 0x751;   // 0x40 = performance/boost, 0xA0 = standard/quiet
     public const ushort ApOemByte3 = 0x7A5;   // bit 3 = usar a tabela do usuário
