@@ -10,8 +10,10 @@
     - installs to C:\Program Files\AvellCC
     - registers the "AvellCC" service (LocalSystem, automatic, restart on failure) and starts it
     - Rule 1 (one controller at a time): stops Avell Custom Control and disables its GCUBridge service
-    - Start Menu shortcut, starts the tray app at sign-in (HKCU Run), offers to launch it at the end
-  On uninstall: stops and removes the service (the fans go back to the firmware) and re-enables GCUBridge.
+    - Start Menu shortcut; offers to launch the app at the end. The app itself turns on "start with Windows"
+      on its first run (once per user, so turning it off in Settings survives updates)
+  On uninstall: stops and removes the service (the fans go back to the firmware), re-enables GCUBridge and
+  removes the "start with Windows" entry.
   Backups and settings in C:\ProgramData\AvellCC are never touched.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
@@ -27,7 +29,8 @@
            Compressed="yes">
 
     <SummaryInformation Description="AvellCC - fan curves and keyboard RGB for Avell / Uniwill laptops" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of AvellCC is already installed." />
+    <!-- Same-version rebuilds replace each other instead of installing side by side -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of AvellCC is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="AvellCC.ico" SourceFile="$(var.IconFile)" />
@@ -51,7 +54,6 @@
       <ComponentRef Id="AppExe" />
       <ComponentRef Id="ServiceExe" />
       <ComponentRef Id="StartMenuShortcut" />
-      <ComponentRef Id="RunAtSignIn" />
     </Feature>
 
     <!-- UI: license (GPL-3.0) → install → finish, with "Launch AvellCC" -->
@@ -78,9 +80,17 @@
                  Value="&quot;[System64Folder]cmd.exe&quot; /c &quot;sc config GCUBridge start= auto&quot;" />
     <CustomAction Id="RestoreVendor" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
 
+    <!-- Uninstall (not upgrade): remove the "start with Windows" entry the app created for the user running the
+         uninstall. QuietExec children run as SYSTEM even when "impersonated", so address the hive by SID, not HKCU. -->
+    <SetProperty Id="RemoveRunEntry" Sequence="execute" Before="RemoveRunEntry"
+                 Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c &quot;reg delete HKU\[UserSID]\Software\Microsoft\Windows\CurrentVersion\Run /v AvellCC /f &amp; reg delete HKU\[UserSID]\Software\AvellCC /v StartupInitialized /f&quot;" />
+    <CustomAction Id="RemoveRunEntry" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="DisableVendor" Before="StartServices" Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
       <Custom Action="RestoreVendor" Before="InstallFinalize" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RemoveRunEntry" Before="InstallFinalize" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
   </Package>
 
@@ -114,12 +124,6 @@
       </ServiceInstall>
       <!-- Stopping the service on upgrade/uninstall hands the fans back to the firmware -->
       <ServiceControl Id="AvellCCServiceControl" Name="AvellCC" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
-    </Component>
-
-    <!-- Tray app at sign-in for the installing user; can be turned off in the app (Settings) -->
-    <Component Id="RunAtSignIn" Directory="INSTALLFOLDER">
-      <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="AvellCC"
-                     Type="string" Value="&quot;[INSTALLFOLDER]AvellCC.exe&quot; --minimized" KeyPath="yes" />
     </Component>
   </Fragment>
 </Wix>

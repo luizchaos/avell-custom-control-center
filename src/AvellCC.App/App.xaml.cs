@@ -45,6 +45,12 @@ public partial class App : Application
             return;
         }
 
+        if (!simulate)
+        {
+            try { StartupRegistration.InitializeOnFirstRun(); }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or System.IO.IOException) { }
+        }
+
         var client = new AvellClient(simulate ? Protocol.PipeName + ".sim" : Protocol.PipeName);
         _window = new MainWindow(client, simulate);
         _tray = new TrayIcon(_window, client, ExitApp);
