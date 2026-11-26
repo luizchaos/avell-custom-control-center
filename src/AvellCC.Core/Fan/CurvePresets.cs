@@ -29,5 +29,16 @@ public static class CurvePresets
         Gpu = P((40, 30), (50, 40), (60, 55), (68, 75), (78, 100)),
     };
 
-    public static IReadOnlyList<FanCurve> All { get; } = [Balanced, Silent, Performance];
+    /// <summary>
+    /// 100 % sempre (duty 200, o máximo que o EC aceita; ≈ 5543/5590 RPM medidos). Equivale ao "Fan Boost" do vendor,
+    /// a confirmar com `avellcc fan boost-test`.
+    /// </summary>
+    public static readonly FanCurve Max = new()
+    {
+        Name = "max", Hysteresis = 2, Shared = true,
+        Cpu = P((20, 100), (40, 100)),
+        Gpu = P((20, 100), (40, 100)),
+    };
+
+    public static IReadOnlyList<FanCurve> All { get; } = [Balanced, Silent, Performance, Max];
 }

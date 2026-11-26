@@ -438,6 +438,30 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "AvellCC", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
+    // ------------------------------------------------------------------ desenvolvimento
+
+    /// <summary>--screenshot &lt;pasta&gt;: renderiza cada aba em PNG (conferência visual automatizada).</summary>
+    public async Task CaptureTabsAsync(string directory)
+    {
+        System.IO.Directory.CreateDirectory(directory);
+        await Task.Delay(4000);      // tempo para o primeiro status e as configurações chegarem
+        for (var i = 0; i < Tabs.Items.Count; i++)
+        {
+            Tabs.SelectedIndex = i;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            DrawChart();
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            var root = (FrameworkElement)Content;
+            var bmp = new RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bmp.Render(root);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bmp));
+            var header = ((TabItem)Tabs.Items[i]).Header?.ToString() ?? i.ToString(CultureInfo.InvariantCulture);
+            await using var file = System.IO.File.Create(System.IO.Path.Combine(directory, $"{i}-{header}.png"));
+            encoder.Save(file);
+        }
+    }
+
     // ------------------------------------------------------------------ utilitários
 
     private async Task Run(Func<Task> action)

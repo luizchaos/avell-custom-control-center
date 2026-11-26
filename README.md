@@ -53,7 +53,7 @@ src/AvellCC.Ipc      protocolo, servidor e cliente do named pipe
 src/AvellCC.Service  serviço Windows (eventos de energia, reinício automático)
 src/AvellCC.App      UI WPF + bandeja
 src/AvellCC.Cli      avellcc.exe: diagnóstico e testes de hardware (recusa gravar com o serviço rodando)
-tests/               108 testes (FakeEc, transporte HID falso, pipe real)
+tests/               110 testes (FakeEc, transporte HID falso, pipe real)
 tools/               diag (PowerShell, só leitura), install.ps1, uninstall.ps1
 curves/              curvas de exemplo e sondas usadas nos testes de hardware
 ```

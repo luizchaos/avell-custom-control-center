@@ -253,6 +253,13 @@ A CPU chegou a 86 °C com 100 %. A emergência (92 °C) não foi acionada, e ao 
 
 Não é linear: ~68 RPM/% no começo e ~45 RPM/% no fim. Está codificada em `FanCalibration`, usada só para estimativas.
 
+#### Fan Boost do app da Avell
+
+`MyFanManager_Intel.SetFanBoost` faz só `0x751 |= 0x40`: é o **mesmo bit 6** ("full fan mode") do controle direto.
+Sem duty gravado, o EC acelera até o máximo dele. O duty aceita no máximo `0xC8` = 200 = 100 %
+(a Tuxedo recusa valores acima). Hipótese: **Fan Boost = duty 100 % ≈ 5543/5590 RPM**.
+Ainda falta medir com `avellcc fan boost-test`. O preset `max` (100 % sempre) cobre o mesmo caso no AvellCC.
+
 **Este notebook: `0x78E = 0x0C` (bit 6 = 0), então NÃO tem controle universal.** Isso explica por que as sondas `0xF00` falharam.
 Caminhos restantes, em ordem: **(B)** Office + `0x727` bit 6; **(A)** controle direto `0x1804/0x1809`.
 O caminho (A) significa curva aplicada pelo software (o serviço lê a temperatura e grava o duty), e não pelo firmware.

@@ -158,7 +158,7 @@ public sealed class FanControlLoopTests : IDisposable
     {
         var store = new SettingsStore(_dir);
         store.EnsurePresets();
-        Assert.Equal(3, store.ListCurves().Count);
+        Assert.Equal(CurvePresets.All.Count, store.ListCurves().Count);
 
         var edited = CurvePresets.Balanced with { Hysteresis = 6 };
         store.SaveCurve(edited);

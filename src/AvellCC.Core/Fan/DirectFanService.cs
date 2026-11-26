@@ -86,6 +86,22 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         }
     }
 
+    /// <summary>
+    /// Liga SÓ o 0x751 bit 6, sem gravar duty: é exatamente o "Fan Boost" do app da Avell
+    /// (MyFanManager_Intel.SetFanBoost: 0x751 |= 0x40). Usado para medir o máximo do firmware. Desligar com <see cref="Disable"/>.
+    /// </summary>
+    public void EnableFanBoostOnly()
+    {
+        var running = vendorRunning();
+        if (running.Length > 0) throw new VendorRunningException(running);
+        var (original, _) = EnsureOriginalBackup();
+        var current = ec.Read(EcAddresses.FanControl);
+        if ((current & EcAddresses.FullFanModeBit) != 0)
+            throw new InvalidOperationException($"0x751 já está com o bit 6 ligado (0x{current:X2}).");
+        _originalFanControl = original.Values()[EcAddresses.FanControl];
+        ec.Write(EcAddresses.FanControl, (byte)(current | EcAddresses.FullFanModeBit));
+    }
+
     /// <summary>Grava o duty das duas ventoinhas (chamar periodicamente enquanto ativo).</summary>
     public void SetDuty(int fan1Percent, int fan2Percent)
     {

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AvellCC" Width="1040" Height="720" MinWidth="820" MinHeight="560"
-        Background="{StaticResource Bg}" WindowStartupLocation="CenterScreen">
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource Panel}"/>
@@ -29,7 +29,7 @@
         </Style>
     </Window.Resources>
 
-    <DockPanel>
+    <DockPanel Background="{StaticResource Bg}">
         <!-- Cabeçalho -->
         <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" Padding="20,12" BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
             <Grid>
@@ -49,10 +49,10 @@
             <TextBlock x:Name="BannerText" Foreground="#16181D" FontWeight="SemiBold" TextWrapping="Wrap"/>
         </Border>
 
-        <TabControl Margin="12" Background="{StaticResource Bg}" BorderThickness="0">
+        <TabControl x:Name="Tabs" Margin="12" Background="{StaticResource Bg}" BorderThickness="0">
 
             <!-- ============ PAINEL ============ -->
-            <TabItem Header="  Painel  ">
+            <TabItem Header="Painel">
                 <WrapPanel Margin="8">
                     <Border Style="{StaticResource Card}" Width="220">
                         <StackPanel>
@@ -91,7 +91,7 @@
             </TabItem>
 
             <!-- ============ VENTOINHAS ============ -->
-            <TabItem Header="  Ventoinhas  ">
+            <TabItem Header="Ventoinhas">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="400"/>
@@ -182,7 +182,7 @@
             </TabItem>
 
             <!-- ============ TECLADO ============ -->
-            <TabItem Header="  Teclado  ">
+            <TabItem Header="Teclado">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
@@ -242,7 +242,7 @@
             </TabItem>
 
             <!-- ============ CONFIGURAÇÕES ============ -->
-            <TabItem Header="  Configurações  ">
+            <TabItem Header="Configurações">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
                     <Border Style="{StaticResource Card}">
                         <StackPanel>

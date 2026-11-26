@@ -33,6 +33,17 @@ public partial class App : Application
         _tray = new TrayIcon(_window, client, ExitApp);
         _window.StatusUpdated += _tray.Update;
 
+        var shot = Array.IndexOf(e.Args, "--screenshot");
+        if (shot >= 0 && shot + 1 < e.Args.Length)
+        {
+            var dir = e.Args[shot + 1];
+            _window.Loaded += async (_, _) =>      // assinar ANTES do Show
+            {
+                try { await _window.CaptureTabsAsync(dir); }
+                finally { ExitApp(); }
+            };
+        }
+
         if (!e.Args.Contains("--minimized")) _window.Show();
     }
 

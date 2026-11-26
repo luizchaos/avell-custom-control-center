@@ -147,6 +147,37 @@ static int Ec(string[] args, bool rawBytes)
             var runSeconds = args.Length > 4 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
             return CurveRun(ec, direct, directStore, FanCurve.Load(runCurvePath), runSeconds, rawBytes);
 
+        case ["fan", "boost-test", ..]:
+        {
+            // Mede o "Fan Boost" do vendor (só 0x751 bit 6) para comparar com o nosso 100 % (duty 200 ≈ 5543 RPM).
+            var boostSeconds = args.Length > 2 ? int.Parse(args[2], CultureInfo.InvariantCulture) : 40;
+            Console.WriteLine($"Fan Boost do vendor (só 0x751 bit 6, sem gravar duty) por {boostSeconds} s. Referência: nosso 100 % ≈ 5543 / 5590 RPM.");
+            PrintDirect(direct.ReadState());
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+            int max1 = 0, max2 = 0;
+            try
+            {
+                direct.EnableFanBoostOnly();
+                var end = DateTimeOffset.Now.AddSeconds(boostSeconds);
+                while (DateTimeOffset.Now < end && !cts.IsCancellationRequested)
+                {
+                    var s = FanSample.Read(ec);
+                    max1 = Math.Max(max1, s.Fan1);
+                    max2 = Math.Max(max2, s.Fan2);
+                    Console.WriteLine($"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}  duty {ec.Read(EcAddresses.DirectFan1Duty),3}/{ec.Read(EcAddresses.DirectFan2Duty),3}  0x751=0x{ec.Read(EcAddresses.FanControl):X2}");
+                    cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(1));
+                }
+            }
+            finally
+            {
+                direct.Disable();
+                Console.WriteLine($"\nFan Boost desligado. Pico: fan1 {max1} / fan2 {max2} RPM (nosso 100 %: 5543 / 5590).");
+                PrintDirect(direct.ReadState());
+            }
+            return 0;
+        }
+
         case ["fan", "direct", "off", "--yes"]:
             if (Busy() is { Length: > 0 } busy) throw new VendorRunningException(busy);
             direct.Disable();
@@ -447,6 +478,7 @@ static int Usage()
           avellcc fan direct trial <percent 25-100> [segundos] [--raw]          (admin, GRAVA, sempre restaura)
           avellcc fan direct off --yes                                          (admin, desliga o controle direto)
           avellcc fan curve run <curva.json> [segundos] [--raw]                 (admin, aplica a curva; Ctrl+C devolve ao firmware)
+          avellcc fan boost-test [segundos]                                     (admin, mede o Fan Boost do vendor e restaura)
           avellcc fan trial <curva.json> ...   (tabela 0xF00: ignorada por este EC, só referência)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info

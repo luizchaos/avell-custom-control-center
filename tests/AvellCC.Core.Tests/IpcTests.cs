@@ -48,7 +48,7 @@ public sealed class IpcTests : IAsyncLifetime
     {
         using var client = new AvellClient(_pipe);
         var curves = await client.ListCurvesAsync();
-        Assert.Equal(3, curves.Length);
+        Assert.Equal(CurvePresets.All.Count, curves.Length);
         Assert.Equal(CurvePresets.Balanced.Cpu, curves[0].Cpu);
     }
 

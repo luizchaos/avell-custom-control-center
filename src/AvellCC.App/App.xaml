@@ -13,8 +13,36 @@
         <SolidColorBrush x:Key="Warn" Color="#F59E0B"/>
         <SolidColorBrush x:Key="Bad" Color="#EF4444"/>
 
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+        <!-- Sem estilo implícito de TextBlock aqui: no nível da Application ele vaza para dentro dos templates
+             (cabeçalho das abas, ComboBox) e deixa texto claro sobre fundo claro. A cor vem por herança da janela. -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#16181D"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2"
+                                Padding="18,8" Margin="0,0,4,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#20232A"/>
+                                <Setter Property="Foreground" Value="#E6E8EC"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3B82F6"/>
+                                <Setter Property="Foreground" Value="#E6E8EC"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="Label">
             <Setter Property="Foreground" Value="{StaticResource Muted}"/>

@@ -46,6 +46,24 @@ public sealed class DirectFanServiceTests : IDisposable
     }
 
     [Fact]
+    public void Fan_boost_only_sets_bit6_without_duty_and_restores()
+    {
+        var service = Service();
+        service.EnableFanBoostOnly();
+        Assert.Equal(EcAddresses.FullFanModeBit, _ec.Read(EcAddresses.FanControl));
+        Assert.DoesNotContain(_ec.Writes, w => w.Address is EcAddresses.DirectFan1Duty or EcAddresses.DirectFan2Duty);
+        service.Disable();
+        Assert.Equal(0x00, _ec.Read(EcAddresses.FanControl));
+    }
+
+    [Fact]
+    public void Max_preset_is_full_speed_everywhere()
+    {
+        var c = new FanCurveController(CurvePresets.Max);
+        Assert.Equal(100, c.Step(new FanSample(DateTimeOffset.Now, 30, 30, 0, 0)).Fan1);
+    }
+
+    [Fact]
     public void Disable_returns_0x751_to_original()
     {
         var service = Service();
