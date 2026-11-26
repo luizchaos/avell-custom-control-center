@@ -68,7 +68,7 @@ public sealed class FanTableBackupTests : IDisposable
         _service.RestoreOriginal();
         Assert.Equal(originalBytes, _ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength));
         Assert.Equal(0x00, _ec.Read(EcAddresses.ApOemByte3));
-        // o modo é restaurado ANTES da tabela (desliga a tabela do usuário antes de mexer nela)
+        // the mode is restored BEFORE the table (disables the user table before touching it)
         Assert.Equal(EcAddresses.ApOemByte3, _ec.Writes[0].Address);
     }
 
@@ -86,7 +86,7 @@ public sealed class FanTableBackupTests : IDisposable
         Assert.Throws<ArgumentException>(() =>
             _service.Apply(new Dictionary<ushort, byte> { [EcAddresses.ProjectId] = 1 }, new byte[EcAddresses.FanTableLength], FanTableService.WriteOrder.TableFirst, "x"));
 
-    /// <summary>Mesmo formato gerado por tools/diag/Invoke-AvellDiag.ps1 (ConvertTo-Json do PowerShell 5.1).</summary>
+    /// <summary>Same format as written by tools/diag/Invoke-AvellDiag.ps1 (PowerShell 5.1 ConvertTo-Json).</summary>
     private const string ScriptBackup = """
         {
             "schema":  "avellcc.fan-table.v1",
@@ -117,7 +117,7 @@ public sealed class FanTableBackupTests : IDisposable
         var modes = original.FanModeRegisterValues();
 
         Assert.All(original.Raw, b => Assert.Equal(0, b));
-        Assert.Equal(4, modes.Count);                       // 0x782 é ignorado
+        Assert.Equal(4, modes.Count);                       // 0x782 is ignored
         Assert.Equal(0x04, modes[EcAddresses.TurboLevel]);
         Assert.Equal(0x00, modes[EcAddresses.ApOemByte3]);
     }

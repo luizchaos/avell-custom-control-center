@@ -1,5 +1,5 @@
-// Curva de teste: mais agressiva que a de fábrica observada (3300–5100 RPM entre 72 e 84 °C).
-// Objetivo do primeiro teste: confirmar que o EC segue a tabela, não economizar ruído.
+// 0xF00 table trial curve (ignored by this EC): more aggressive than the observed factory behaviour (3300–5100 RPM at 72–84 °C).
+// Goal of the first test: confirm whether the EC follows the table, not to save noise.
 {
   "name": "safe-trial",
   "hysteresis": 4,

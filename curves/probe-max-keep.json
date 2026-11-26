@@ -1,5 +1,5 @@
-// SONDA: 100 % a partir de 40 °C. Se o EC seguir a tabela, as ventoinhas vão ao máximo mesmo ociosas.
-// "keep": liga só o bit 3 de 0x7A5 e não mexe em 0x751.
+// PROBE: 100 % from 40 °C. If the EC follows the 0xF00 table, fans go to maximum even at idle. Ignored on the A65 LIV.
+// "keep": only sets 0x7A5 bit 3 and leaves 0x751 alone.
 {
   "name": "probe-max-keep",
   "hysteresis": 4,

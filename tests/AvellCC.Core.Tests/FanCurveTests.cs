@@ -21,10 +21,10 @@ public sealed class FanCurveTests : IDisposable
     public void Repository_trial_curve_is_valid() => FanCurve.Load(RepoCurve);
 
     [Theory]
-    [InlineData(new[] { 40, 60 }, new[] { 30, 20 }, "must not decrease")]          // duty desce
-    [InlineData(new[] { 40, 40 }, new[] { 30, 90 }, "strictly increasing")]         // temperatura repetida
-    [InlineData(new[] { 40, 95 }, new[] { 30, 100 }, "at or below 90")]            // último ponto quente demais
-    [InlineData(new[] { 40, 85 }, new[] { 30, 60 }, "at least 80")]      // não ventila forte no fim
+    [InlineData(new[] { 40, 60 }, new[] { 30, 20 }, "must not decrease")]          // duty decreases
+    [InlineData(new[] { 40, 40 }, new[] { 30, 90 }, "strictly increasing")]         // repeated temperature
+    [InlineData(new[] { 40, 95 }, new[] { 30, 100 }, "at or below 90")]            // last point too hot
+    [InlineData(new[] { 40, 85 }, new[] { 30, 60 }, "at least 80")]      // does not cool hard at the end
     [InlineData(new[] { 70, 80 }, new[] { 30, 100 }, "span at least")]            // degraus < 1 °C
     [InlineData(new[] { 10, 80 }, new[] { 30, 100 }, "below 20")]
     public void Invalid_curves_are_rejected(int[] temps, int[] duties, string expected)
@@ -39,7 +39,7 @@ public sealed class FanCurveTests : IDisposable
     {
         var levels = FanTableEncoder.BuildLevels(Good.Cpu, Good.Hysteresis);
         for (var t = 20; t <= 110; t++)
-            Assert.True(FanTableEncoder.ExpectedDuty(levels, t) >= FanCurve.Evaluate(Good.Cpu, t) - 1e-9, $"abaixo da curva em {t} °C");
+            Assert.True(FanTableEncoder.ExpectedDuty(levels, t) >= FanCurve.Evaluate(Good.Cpu, t) - 1e-9, $"below the curve at {t} °C");
     }
 
     [Fact]
@@ -68,11 +68,11 @@ public sealed class FanCurveTests : IDisposable
         Assert.Equal(cpu[3].EndTemp, table[0x03]);                       // 0xF03
         Assert.Equal(cpu[3].StartTemp, table[0x13]);                     // 0xF13
         Assert.Equal((byte)(cpu[3].DutyPercent * 2), table[0x23]);       // 0xF23
-        Assert.Equal(200, table[0x2F]);                                  // último nível CPU = 100 %
-        Assert.Equal(200, table[0x5F]);                                  // último nível GPU = 100 %
+        Assert.Equal(200, table[0x2F]);                                  // last CPU level = 100 %
+        Assert.Equal(200, table[0x5F]);                                  // last GPU level = 100 %
     }
 
-    // ---- aplicação no EC (FakeEc) ----
+    // ---- applying to the EC (FakeEc) ----
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "avellcc-curve-" + Guid.NewGuid().ToString("N"));
     private readonly FakeEc _ec = new();
@@ -83,16 +83,16 @@ public sealed class FanCurveTests : IDisposable
     [Fact]
     public void Apply_curve_writes_table_before_enabling_user_table()
     {
-        _ec.Seed(EcAddresses.ApOemByte3, [0x04]);   // quiet ligado
+        _ec.Seed(EcAddresses.ApOemByte3, [0x04]);   // quiet on
         var table = Service().ApplyCurve(Good with { EcMode = "standard" });
 
         Assert.Equal(table, _ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength));
-        Assert.Equal(0x08, _ec.Read(EcAddresses.ApOemByte3));           // bit 3 ligado, bit 2 desligado
+        Assert.Equal(0x08, _ec.Read(EcAddresses.ApOemByte3));           // bit 3 set, bit 2 cleared
         Assert.Equal(0xA0, _ec.Read(EcAddresses.FanControl));
 
         var lastTableWrite = _ec.Writes.FindLastIndex(w => w.Address is >= EcAddresses.FanTableStart and < EcAddresses.FanTableStart + EcAddresses.FanTableLength);
         var enableWrite = _ec.Writes.FindIndex(w => w.Address == EcAddresses.ApOemByte3);
-        Assert.True(enableWrite > lastTableWrite, "a tabela do usuário só pode ser ligada depois da tabela gravada");
+        Assert.True(enableWrite > lastTableWrite, "the user table may only be enabled after the table is written");
     }
 
     [Theory]
@@ -125,7 +125,7 @@ public sealed class FanCurveTests : IDisposable
     public void Restore_after_curve_returns_to_firmware_curve_and_disables_user_table_first()
     {
         var service = Service();
-        service.EnsureOriginalBackup();                 // original: tudo zero
+        service.EnsureOriginalBackup();                 // original: all zeros
         service.ApplyCurve(Good);
         _ec.Writes.Clear();
 
@@ -135,7 +135,7 @@ public sealed class FanCurveTests : IDisposable
         Assert.False(service.IsUserTableActive());
         var disable = _ec.Writes.FindIndex(w => w.Address == EcAddresses.ApOemByte3);
         var firstTableWrite = _ec.Writes.FindIndex(w => w.Address >= EcAddresses.FanTableStart);
-        Assert.True(disable < firstTableWrite, "desligar a tabela do usuário antes de zerá-la");
+        Assert.True(disable < firstTableWrite, "disable the user table before zeroing it");
     }
 
     private sealed class FlakyEc(FakeEc inner, ushort failAt) : IEcAccess
@@ -144,7 +144,7 @@ public sealed class FanCurveTests : IDisposable
         public byte Read(ushort a) => inner.Read(a);
         public void Write(ushort a, byte v)
         {
-            if (Armed && a == failAt) { Armed = false; inner.Write(a, (byte)(v ^ 0xFF)); return; }  // grava errado uma vez
+            if (Armed && a == failAt) { Armed = false; inner.Write(a, (byte)(v ^ 0xFF)); return; }  // writes a wrong value once
             inner.Write(a, v);
         }
     }

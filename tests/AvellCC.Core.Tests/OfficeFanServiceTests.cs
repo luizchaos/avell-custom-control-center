@@ -16,7 +16,7 @@ public sealed class OfficeFanServiceTests : IDisposable
     public OfficeFanServiceTests()
     {
         _store = new EcRegisterBackupStore(_dir);
-        // Estado lido do notebook em 2026-11-26
+        // State read from the laptop on 2026-11-26
         _ec.Seed(EcAddresses.OfficeAdvPwmStart, [0x3C, 0x46, 0x50, 0x64, 0x78]);
         _ec.Seed(EcAddresses.OfficeAdvPwmDefaultStart, [0x3C, 0x46, 0x50, 0x64, 0x78]);
         _ec.Seed(EcAddresses.BiosOemByte2, [0x5D]);
@@ -60,7 +60,7 @@ public sealed class OfficeFanServiceTests : IDisposable
         Service().Apply(Strong);
 
         var original = _store.LoadOriginal().Values();
-        Assert.Equal(0x3C, original[EcAddresses.OfficeAdvPwmStart]);               // original salvo ANTES de gravar
+        Assert.Equal(0x3C, original[EcAddresses.OfficeAdvPwmStart]);               // original saved BEFORE writing
         Assert.Equal(0x00, original[EcAddresses.FanControl]);
         Assert.True(File.GetAttributes(_store.OriginalPath).HasFlag(FileAttributes.ReadOnly));
 
@@ -69,7 +69,7 @@ public sealed class OfficeFanServiceTests : IDisposable
 
         var modeWrite = _ec.Writes.FindIndex(w => w.Address == EcAddresses.FanControl);
         var lastPwmWrite = _ec.Writes.FindLastIndex(w => w.Address is >= EcAddresses.OfficeAdvPwmStart and < EcAddresses.OfficeAdvPwmStart + 5);
-        Assert.True(modeWrite > lastPwmWrite, "o modo só pode ser ligado depois das velocidades");
+        Assert.True(modeWrite > lastPwmWrite, "the mode may only be enabled after the speeds");
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class OfficeFanServiceTests : IDisposable
     public void Original_backup_is_never_overwritten()
     {
         var service = Service();
-        service.Apply(Strong);                                   // cria o original com 30..60 %
+        service.Apply(Strong);                                   // creates the original with 30..60 %
         service.Apply(Strong with { Duties = [50, 60, 70, 80, 100] });
 
         Assert.Equal(0x3C, _store.LoadOriginal().Values()[EcAddresses.OfficeAdvPwmStart]);

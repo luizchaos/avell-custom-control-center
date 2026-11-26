@@ -3,5 +3,5 @@ obj/
 .vs/
 *.user
 TestResults/
-# Relatórios do diagnóstico contêm dados da máquina
+# Diagnostic reports contain machine data
 diag-output/

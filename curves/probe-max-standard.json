@@ -1,4 +1,4 @@
-// SONDA: 100 % a partir de 40 °C, com 0x751 = 0xA0 (modo Standard do vendor, usado no primeiro teste).
+// PROBE: 100 % from 40 °C, with 0x751 = 0xA0 (vendor Standard mode). Ignored on the A65 LIV.
 {
   "name": "probe-max-standard",
   "hysteresis": 4,

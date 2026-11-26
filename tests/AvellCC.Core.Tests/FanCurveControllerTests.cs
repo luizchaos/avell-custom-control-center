@@ -47,7 +47,7 @@ public class FanCurveControllerTests
     {
         var c = new FanCurveController(Curve, new ControllerOptions { MaxDownPerSecond = 2 });
         c.Step(S(0, 80, 40));                       // 90 %
-        var d = c.Step(S(5, 40, 40));               // queda de 40 °C, mas só -10 % em 5 s
+        var d = c.Step(S(5, 40, 40));               // 40 °C drop, but only -10 % in 5 s
         Assert.Equal(80, d.Fan1);
     }
 
@@ -56,9 +56,9 @@ public class FanCurveControllerTests
     {
         var c = new FanCurveController(Curve, new ControllerOptions { MaxDownPerSecond = 100 });
         c.Step(S(0, 60, 40));
-        var small = c.Step(S(1, 57, 40));           // caiu 3 °C (< 4): continua efetiva 60
+        var small = c.Step(S(1, 57, 40));           // dropped 3 °C (< 4): effective stays 60
         Assert.Equal(60, small.CpuEffective);
-        var big = c.Step(S(2, 50, 40));             // caiu 10 °C: efetiva = 50 + 4
+        var big = c.Step(S(2, 50, 40));             // dropped 10 °C: effective = 50 + 4
         Assert.Equal(54, big.CpuEffective);
     }
 
@@ -71,7 +71,7 @@ public class FanCurveControllerTests
         Assert.Equal(100, hot.Fan1);
         Assert.Equal(100, hot.Fan2);
 
-        Assert.True(c.Step(S(1, 85, 50)).Emergency);   // ainda acima de 82
+        Assert.True(c.Step(S(1, 85, 50)).Emergency);   // still above 82
         var cool = c.Step(S(2, 81, 50));
         Assert.False(cool.Emergency);
     }
@@ -118,7 +118,7 @@ public class FanCurveControllerTests
         var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "curves", "balanced.json");
         var curve = FanCurve.Load(path);
         var c = new FanCurveController(curve);
-        Assert.Equal(25, c.Step(S(0, 45, 45)).Fan1);          // ocioso: mínimo
+        Assert.Equal(25, c.Step(S(0, 45, 45)).Fan1);          // idle: minimum
         Assert.Equal(100, new FanCurveController(curve).Step(S(0, 85, 60)).Fan1);
     }
 }

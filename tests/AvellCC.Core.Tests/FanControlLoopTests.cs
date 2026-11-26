@@ -59,7 +59,7 @@ public sealed class FanControlLoopTests : IDisposable
     [Fact]
     public void Leftover_direct_control_from_a_crash_is_released_in_firmware_mode()
     {
-        _ec.Seed(EcAddresses.FanControl, [EcAddresses.FullFanModeBit]);   // serviço anterior morreu com o bit ligado
+        _ec.Seed(EcAddresses.FanControl, [EcAddresses.FullFanModeBit]);   // previous service died with the bit set
         _loop.Tick();
         Assert.False(FullFan);
     }
@@ -78,7 +78,7 @@ public sealed class FanControlLoopTests : IDisposable
     {
         _loop.UseCurve(CurvePresets.Balanced);
         _loop.Tick();
-        _ec.Seed(EcAddresses.FanControl, [0x00]);     // tecla Fn / BIOS desligou
+        _ec.Seed(EcAddresses.FanControl, [0x00]);     // Fn key / BIOS turned it off
         var s = _loop.Tick();
         Assert.True(FullFan);
         Assert.Contains("re-acquired", s.Message);

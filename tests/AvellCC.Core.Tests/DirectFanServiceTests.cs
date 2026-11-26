@@ -10,7 +10,7 @@ public sealed class DirectFanServiceTests : IDisposable
     private readonly FakeEc _ec = new();
     private EcRegisterBackupStore Store => new(_dir, DirectFanService.BackupGroup);
 
-    public DirectFanServiceTests() => _ec.Seed(EcAddresses.FanCtrlStatus, [0x0C]);   // valor real: sem controle universal
+    public DirectFanServiceTests() => _ec.Seed(EcAddresses.FanCtrlStatus, [0x0C]);   // real value: no universal control
 
     private DirectFanService Service(Func<string[]>? vendor = null) =>
         new(_ec, Store, () => new MachineInfo(), vendor ?? (() => []));
@@ -41,8 +41,8 @@ public sealed class DirectFanServiceTests : IDisposable
 
         var firstDuty = _ec.Writes.FindIndex(w => w.Address == EcAddresses.DirectFan1Duty);
         var mode = _ec.Writes.FindIndex(w => w.Address == EcAddresses.FanControl);
-        Assert.True(firstDuty < mode, "duty antes de ligar o full fan mode");
-        Assert.True(_ec.Writes.FindLastIndex(w => w.Address == EcAddresses.DirectFan1Duty) > mode, "duty regravado depois");
+        Assert.True(firstDuty < mode, "duty before enabling full fan mode");
+        Assert.True(_ec.Writes.FindLastIndex(w => w.Address == EcAddresses.DirectFan1Duty) > mode, "duty rewritten afterwards");
     }
 
     [Fact]

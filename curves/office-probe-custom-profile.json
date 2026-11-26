@@ -1,4 +1,4 @@
-// SONDA B: igual a office-probe (T1 = 70 %), mas também liga 0x727 bit 6 ("custom profile mode", tuxedo-drivers).
+// PROBE B: like office-probe (T1 = 70 %), but also sets 0x727 bit 6 ("custom profile mode", tuxedo-drivers). Ignored on the A65 LIV.
 {
   "name": "office-probe-cp",
   "duties": [70, 75, 80, 90, 100],

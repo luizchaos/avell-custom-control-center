@@ -34,10 +34,10 @@ public class FourZoneKeyboardTests
         Assert.Equal(6, t.Sent.Count);
         Assert.Equal(0x08, t.Sent[1][1]);
         Assert.Equal(1, t.Sent[1][8]);                               // save
-        Assert.Equal("00140001FF0000" + "0000", Hex(t.Sent[2]));     // zona 1 vermelho
-        Assert.Equal("0014000200640000" + "00", Hex(t.Sent[3]));     // zona 2 verde: 255*100/255 = 0x64
-        Assert.Equal("001400030000C8" + "0000", Hex(t.Sent[4]));     // zona 3 azul:  255*200/255 = 0xC8
-        Assert.Equal("00140004FF64C8" + "0000", Hex(t.Sent[5]));     // zona 4 branco corrigido
+        Assert.Equal("00140001FF0000" + "0000", Hex(t.Sent[2]));     // zone 1 red
+        Assert.Equal("0014000200640000" + "00", Hex(t.Sent[3]));     // zone 2 green: 255*100/255 = 0x64
+        Assert.Equal("001400030000C8" + "0000", Hex(t.Sent[4]));     // zone 3 blue:  255*200/255 = 0xC8
+        Assert.Equal("00140004FF64C8" + "0000", Hex(t.Sent[5]));     // zone 4 corrected white
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class FourZoneKeyboardTests
             [new Rgb(1, 2, 3), new Rgb(4, 5, 6)], save: false);
 
         Assert.Equal(3, t.Sent.Count);
-        Assert.Equal("0008020301240801" + "00", Hex(t.Sent[2]));     // mesmo estado lido do hardware em 2026-11-26
+        Assert.Equal("0008020301240801" + "00", Hex(t.Sent[2]));     // same state read from the hardware on 2026-11-26
     }
 
     [Fact]

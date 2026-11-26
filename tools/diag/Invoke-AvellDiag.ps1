@@ -1,20 +1,20 @@
 <#
 .SYNOPSIS
-  Diagnostico SOMENTE LEITURA do Avell A65 LIV (plataforma Uniwill).
+  READ-ONLY diagnostic for the Avell A65 LIV (Uniwill platform). Also useful to inspect other Uniwill/TongFang laptops.
 
 .DESCRIPTION
-  - Le registradores do EC via WMI (AcpiTest_MULong.GetSetULong) usando APENAS o formato de leitura
-    (Data = 0x10000000000 + addr). Este script nao contem nenhuma funcao de escrita no EC.
-  - Le a tabela de ventoinha (0xF00-0xF5F) e grava o backup ORIGINAL em
-    %ProgramData%\AvellCC\backup\fan-table.original.json SOMENTE se ele ainda nao existir (nunca sobrescreve).
-  - Amostra temperaturas (EC 0x430-0x45F x Thermal Zone do Windows x nvidia-smi) para correlacionar enderecos.
-  - Lista os dispositivos HID ITE (048D) abrindo-os sem direito de acesso (nenhum comando enviado).
-  - Gera um relatorio em <repo>\diag-output\.
+  - Reads EC registers via WMI (AcpiTest_MULong.GetSetULong) using ONLY the read format
+    (Data = 0x10000000000 + addr). This script contains no EC write function at all.
+  - Reads the fan table (0xF00-0xF5F) and writes the ORIGINAL backup to
+    %ProgramData%\AvellCC\backup\fan-table.original.json ONLY if it does not exist yet (never overwrites).
+  - Samples temperatures (EC 0x430-0x45F vs. Windows thermal zones vs. nvidia-smi) to correlate addresses.
+  - Lists the ITE (048D) HID devices, opening them with no access rights (no command is sent).
+  - Writes a report to <repo>\diag-output\ (git-ignored: it contains machine data).
 
-  Requer PowerShell como Administrador para a parte do EC. Sem admin, so roda a parte HID.
+  The EC part requires an elevated PowerShell. Without admin, only the HID part runs.
 
 .PARAMETER Samples
-  Numero de amostras de temperatura/RPM (1 por segundo). Padrao: 5.
+  Number of temperature/RPM samples (one per second). Default: 5.
 #>
 [CmdletBinding()]
 param(
@@ -25,13 +25,13 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
 # ----------------------------------------------------------------------------------------------
-# Constantes (ver docs/HARDWARE.md)
+# Constants (see docs/HARDWARE.md)
 # ----------------------------------------------------------------------------------------------
 $WmiNamespace   = 'root\WMI'
 $WmiObjectPath  = "AcpiTest_MULong.InstanceName='ACPI\PNP0C14\1_1'"
-$EcReadFlag     = [UInt64]0x10000000000      # bit 40 = leitura. SEM ele a chamada vira ESCRITA.
+$EcReadFlag     = [UInt64]0x10000000000      # bit 40 = read. WITHOUT it the call becomes a WRITE.
 $FanTableStart  = 0xF00
-$FanTableLength = 0x60                       # 0xF00..0xF5F (6 blocos x 16)
+$FanTableLength = 0x60                       # 0xF00..0xF5F (6 blocks x 16)
 $ModeRegisters  = [ordered]@{
   'FAN_CONTROL_0x751'   = 0x751
   'AP_OEM_BYTE3_0x7A5'  = 0x7A5
@@ -66,9 +66,9 @@ function Write-Section([string]$title) { Write-Host ''; Write-Host "=== $title =
 function Hex2([int]$v) { '0x{0:X2}' -f $v }
 
 # ----------------------------------------------------------------------------------------------
-# 1. Sistema
+# 1. System
 # ----------------------------------------------------------------------------------------------
-Write-Section 'Sistema'
+Write-Section 'System'
 $cs   = Get-CimInstance Win32_ComputerSystem
 $bios = Get-CimInstance Win32_BIOS
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -83,11 +83,11 @@ $report.system = [ordered]@{
 $vendor = @(Get-Process -Name $VendorProcesses -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name -Unique)
 $report.vendorRunning = $vendor
 if ($vendor.Count -gt 0) {
-  Write-Warning ("Avell Custom Control em execucao: {0}. Leituras sao seguras, mas pare o vendor antes de usar o AvellCC para escrever (docs/ARCHITECTURE.md, Regra 1)." -f ($vendor -join ', '))
+  Write-Warning ("Avell Custom Control is running: {0}. Reads are safe, but stop the vendor app before using AvellCC to write (docs/ARCHITECTURE.md, Rule 1)." -f ($vendor -join ', '))
 }
 
 # ----------------------------------------------------------------------------------------------
-# 2. HID ITE (somente enumeracao; abre com acesso 0, nao envia nada)
+# 2. ITE HID (enumeration only; opens with access 0, sends nothing)
 # ----------------------------------------------------------------------------------------------
 Write-Section 'HID ITE (VID 048D)'
 if (-not ('AvellDiag.Hid' -as [type])) {
@@ -124,7 +124,7 @@ public static class Hid {
       if (SetupDiGetDeviceInterfaceDetail(set, ref d, buf, req, out req, IntPtr.Zero)) path = Marshal.PtrToStringUni(new IntPtr(buf.ToInt64() + 4));
       Marshal.FreeHGlobal(buf);
       if (path == null || path.IndexOf("vid_" + vid.ToString("x4"), StringComparison.OrdinalIgnoreCase) < 0) continue;
-      using (var h = CreateFile(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero)) {   // access = 0: so metadados
+      using (var h = CreateFile(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero)) {   // access = 0: metadata only
         if (h.IsInvalid) continue;
         var a = new HIDD_ATTRIBUTES(); a.Size = Marshal.SizeOf(a); HidD_GetAttributes(h, ref a);
         IntPtr p; var c = new HIDP_CAPS();
@@ -147,23 +147,23 @@ $report.hid = @($hid)
 $hid | Format-Table pid, rev, usagePage, usage, inLen, outLen, featLen, role -AutoSize | Out-String -Width 200 | Write-Host
 
 if (-not $isAdmin) {
-  Write-Warning 'Sem privilegios de administrador: leitura do EC pulada. Rode de novo em um PowerShell "Executar como administrador".'
+  Write-Warning 'No administrator rights: EC reads skipped. Run again from an elevated PowerShell (Run as administrator).'
   $file = Join-Path $outDir "avell-diag-$stamp.json"
   $report | ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 $file
-  Write-Host "Relatorio parcial: $file"
+  Write-Host "Partial report: $file"
   return
 }
 
 # ----------------------------------------------------------------------------------------------
-# 3. EC via WMI (SOMENTE LEITURA)
+# 3. EC via WMI (READ-ONLY)
 # ----------------------------------------------------------------------------------------------
-Write-Section 'EC (WMI AcpiTest_MULong) - somente leitura'
+Write-Section 'EC (WMI AcpiTest_MULong) - read-only'
 $script:ecObj = New-Object System.Management.ManagementObject($WmiNamespace, $WmiObjectPath, $null)
 
 function Read-EcByte([int]$addr) {
-  if ($addr -lt 0 -or $addr -gt 0xFFFF) { throw "Endereco EC invalido: $addr" }
+  if ($addr -lt 0 -or $addr -gt 0xFFFF) { throw "Invalid EC address: $addr" }
   $in = $script:ecObj.GetMethodParameters('GetSetULong')
-  $in['Data'] = [UInt64]($EcReadFlag + [UInt64]$addr)     # formato de LEITURA, nunca montar de outra forma
+  $in['Data'] = [UInt64]($EcReadFlag + [UInt64]$addr)     # READ format; never build it any other way
   $out = $script:ecObj.InvokeMethod('GetSetULong', $in, $null)
   return [int]([UInt64]$out['Return'] -band 0xFF)
 }
@@ -176,23 +176,23 @@ function Format-HexDump([byte[]]$bytes, [int]$base) {
   }
 }
 
-# 3a. Sanidade: a mesma leitura repetida deve dar o mesmo valor
+# 3a. Sanity: the same read repeated must return the same value
 $pid1 = Read-EcByte 0x740; $pid2 = Read-EcByte 0x740; $pid3 = Read-EcByte 0x740
-if (($pid1 -ne $pid2) -or ($pid2 -ne $pid3)) { Write-Warning "Leituras inconsistentes de 0x740: $pid1 $pid2 $pid3" }
+if (($pid1 -ne $pid2) -or ($pid2 -ne $pid3)) { Write-Warning "Inconsistent reads of 0x740: $pid1 $pid2 $pid3" }
 
 $ident = [ordered]@{}; foreach ($k in $IdentityRegisters.Keys) { $ident[$k] = Hex2 (Read-EcByte $IdentityRegisters[$k]) }
 $modes = [ordered]@{}; foreach ($k in $ModeRegisters.Keys) { $modes[$k] = Hex2 (Read-EcByte $ModeRegisters[$k]) }
 $report.ecIdentity = $ident
 $report.ecModes = $modes
-Write-Host 'Identidade:'; $ident.GetEnumerator() | ForEach-Object { '  {0,-22} {1}' -f $_.Key, $_.Value } | Write-Host
-Write-Host 'Modos:';      $modes.GetEnumerator() | ForEach-Object { '  {0,-22} {1}' -f $_.Key, $_.Value } | Write-Host
+Write-Host 'Identity:'; $ident.GetEnumerator() | ForEach-Object { '  {0,-22} {1}' -f $_.Key, $_.Value } | Write-Host
+Write-Host 'Modes:';      $modes.GetEnumerator() | ForEach-Object { '  {0,-22} {1}' -f $_.Key, $_.Value } | Write-Host
 
-# 3b. Tabela de ventoinha
-Write-Section 'Tabela de ventoinha (0xF00-0xF5F)'
+# 3b. Fan table
+Write-Section 'Fan table (0xF00-0xF5F)'
 $table = Read-EcRange $FanTableStart $FanTableLength
 $tableAgain = Read-EcRange $FanTableStart $FanTableLength
 $stable = ([Convert]::ToBase64String($table) -eq [Convert]::ToBase64String($tableAgain))
-if (-not $stable) { Write-Warning 'A tabela mudou entre duas leituras seguidas (o vendor pode estar escrevendo). O backup original NAO sera criado.' }
+if (-not $stable) { Write-Warning 'The table changed between two consecutive reads (the vendor app may be writing). The original backup will NOT be created.' }
 Format-HexDump $table $FanTableStart | Write-Host
 
 function ConvertTo-FanLevels([byte[]]$t, [int]$upOff, [int]$downOff, [int]$dutyOff) {
@@ -220,38 +220,38 @@ $snapshot = [ordered]@{
 $report.fanTable = $snapshot
 $report.fanTableStable = $stable
 
-# 3c. Backup ORIGINAL (cria uma unica vez; nunca sobrescreve)
-Write-Section 'Backup original'
+# 3c. ORIGINAL backup (created once; never overwritten)
+Write-Section 'Original backup'
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 $originalPath = Join-Path $backupDir 'fan-table.original.json'
 if (Test-Path $originalPath) {
   $existing = Get-Content $originalPath -Raw | ConvertFrom-Json
   $same = ($existing.sha256 -eq $sha)
-  "Ja existe: $originalPath (criado em $($existing.createdAt)). Nao foi alterado. Igual ao EC atual: $same" | Write-Host
+  "Already exists: $originalPath (created $($existing.createdAt)). Left unchanged. Matches current EC: $same" | Write-Host
   $report.originalBackup = [ordered]@{ path = $originalPath; created = $false; matchesCurrent = $same }
 } elseif (-not $stable) {
-  Write-Warning 'Backup original NAO criado porque a tabela nao estava estavel. Pare o vendor e rode de novo.'
+  Write-Warning 'Original backup NOT created because the table was not stable. Stop the vendor app and run again.'
   $report.originalBackup = [ordered]@{ path = $originalPath; created = $false; reason = 'unstable' }
 } else {
   $json = $snapshot | ConvertTo-Json -Depth 6
-  # FileMode.CreateNew: falha se o arquivo aparecer entre o Test-Path e aqui (nunca sobrescreve)
+  # FileMode.CreateNew: fails if the file appears between Test-Path and here (never overwrites)
   $fs = [System.IO.File]::Open($originalPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
   try { $bytes = [Text.Encoding]::UTF8.GetBytes($json); $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
   (Get-Item $originalPath).IsReadOnly = $true
-  Write-Host "Backup original criado (somente leitura): $originalPath" -ForegroundColor Green
+  Write-Host "Original backup created (read-only): $originalPath" -ForegroundColor Green
   $report.originalBackup = [ordered]@{ path = $originalPath; created = $true }
 }
 $snapPath = Join-Path $backupDir "fan-table.$stamp.json"
 $snapshot | ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 $snapPath
-Write-Host "Snapshot desta execucao: $snapPath"
+Write-Host "Snapshot of this run: $snapPath"
 
-# 3d. Amostras: RPM + candidatos de temperatura x referencias do Windows
-Write-Section "Amostras ($Samples x 1 s): RPM e temperaturas"
+# 3d. Samples: RPM + temperature candidates vs. Windows references
+Write-Section "Samples ($Samples x 1 s): RPM and temperatures"
 $nvsmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
 $samplesOut = @()
 for ($s = 0; $s -lt $Samples; $s++) {
   $fan1 = ((Read-EcByte 0x464) -shl 8) -bor (Read-EcByte 0x465)
-  $fan2 = ((Read-EcByte 0x46C) -shl 8) -bor (Read-EcByte 0x46D)   # byte baixo real e 0x46D (0x46B e fixo neste modelo)
+  $fan2 = ((Read-EcByte 0x46C) -shl 8) -bor (Read-EcByte 0x46D)   # the real low byte is 0x46D (0x46B is constant on this model)
   $ecTemps = Read-EcRange 0x430 0x30
   $tz = @(Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction SilentlyContinue |
           ForEach-Object { [pscustomobject]@{ zone = $_.Name; celsius = [Math]::Round($_.HighPrecisionTemperature / 10.0 - 273.15, 1) } })
@@ -269,14 +269,14 @@ for ($s = 0; $s -lt $Samples; $s++) {
 }
 $report.samples = $samplesOut
 Write-Host ''
-Write-Host 'Faixa EC 0x430-0x45F da ultima amostra (procure bytes ~ temperatura da CPU/GPU):'
+Write-Host 'EC range 0x430-0x45F of the last sample (look for bytes ~ CPU/GPU temperature):'
 Format-HexDump (Read-EcRange 0x430 0x30) 0x430 | Write-Host
 
 # ----------------------------------------------------------------------------------------------
-# 4. Relatorio
+# 4. Report
 # ----------------------------------------------------------------------------------------------
 $file = Join-Path $outDir "avell-diag-$stamp.json"
 $report | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 $file
-Write-Section 'Concluido'
-Write-Host "Relatorio: $file"
-Write-Host 'Nenhuma escrita foi feita no EC nem nos dispositivos HID.'
+Write-Section 'Done'
+Write-Host "Report: $file"
+Write-Host 'Nothing was written to the EC or to the HID devices.'

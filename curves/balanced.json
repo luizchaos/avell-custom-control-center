@@ -1,5 +1,5 @@
-// Curva de uso (controle direto). Silenciosa no ocioso (~25–30 %, como o firmware), forte sob carga.
-// Referência: o firmware chega a ~77 % (≈ 5100 RPM) com a CPU a 84 °C; esta chega a 100 % em 85 °C.
+// Everyday curve (direct control). Quiet at idle (~25–30 %, like the firmware), strong under load.
+// Reference: the firmware reaches ~77 % (≈ 5100 RPM) with the CPU at 84 °C; this one reaches 100 % at 85 °C.
 {
   "name": "balanced",
   "hysteresis": 4,
