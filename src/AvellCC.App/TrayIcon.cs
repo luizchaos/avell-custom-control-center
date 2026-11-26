@@ -26,7 +26,7 @@ public sealed class TrayIcon : IDisposable
         _client = client;
         _icon = new Forms.NotifyIcon
         {
-            Icon = AppIcon.Create(LoopState.Firmware),
+            Icon = AppIcon.Create(LoopState.Firmware, Math.Clamp(Forms.SystemInformation.SmallIconSize.Width, 16, 64)),
             Text = "AvellCC",
             Visible = true,
             ContextMenuStrip = new Forms.ContextMenuStrip(),
@@ -101,7 +101,7 @@ public sealed class TrayIcon : IDisposable
         if (state != _lastState)
         {
             var old = _icon.Icon;
-            _icon.Icon = AppIcon.Create(state);
+            _icon.Icon = AppIcon.Create(state, Math.Clamp(Forms.SystemInformation.SmallIconSize.Width, 16, 64));
             old?.Dispose();
             _lastState = state;
             if (state is LoopState.Emergency)
@@ -114,45 +114,4 @@ public sealed class TrayIcon : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
     }
-}
-
-/// <summary>Icon drawn in code (no binary file in the repository): a fan colored by state.</summary>
-public static class AppIcon
-{
-    public static Icon Create(LoopState state)
-    {
-        var color = state switch
-        {
-            LoopState.Curve => Color.FromArgb(59, 130, 246),
-            LoopState.Firmware => Color.FromArgb(154, 161, 173),
-            LoopState.Emergency or LoopState.Error => Color.FromArgb(239, 68, 68),
-            _ => Color.FromArgb(245, 158, 11),
-        };
-        using var bmp = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.Transparent);
-            using var brush = new SolidBrush(color);
-            for (var i = 0; i < 4; i++)
-            {
-                var saved = g.Save();
-                g.TranslateTransform(16, 16);
-                g.RotateTransform(i * 90 + 20);
-                g.FillEllipse(brush, -4, -15, 9, 14);   // blade
-                g.Restore(saved);
-            }
-            using var hub = new SolidBrush(Color.FromArgb(22, 24, 29));
-            g.FillEllipse(brush, 10, 10, 12, 12);
-            g.FillEllipse(hub, 13, 13, 6, 6);
-        }
-        var handle = bmp.GetHicon();
-        using var temp = Icon.FromHandle(handle);
-        var icon = (Icon)temp.Clone();
-        DestroyIcon(handle);
-        return icon;
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

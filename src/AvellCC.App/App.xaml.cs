@@ -12,6 +12,7 @@ namespace AvellCC.App;
 ///   AvellCC.exe --minimized           → starts in the tray only (used when starting with Windows)
 ///   AvellCC.exe --lang pt-BR          → forces a UI language for this run
 ///   AvellCC.exe --screenshot &lt;dir&gt;   → renders every tab to PNG and exits (development)
+///   AvellCC.exe --export-icon &lt;ico&gt;  → writes the multi-size icon + a preview PNG and exits (development)
 /// </summary>
 public partial class App : Application
 {
@@ -22,6 +23,15 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        var export = Array.IndexOf(e.Args, "--export-icon");
+        if (export >= 0 && export + 1 < e.Args.Length)
+        {
+            AppIcon.ExportIco(e.Args[export + 1]);
+            AppIcon.ExportPreview(System.IO.Path.ChangeExtension(e.Args[export + 1], ".preview.png"));
+            Shutdown();
+            return;
+        }
+
         var lang = Array.IndexOf(e.Args, "--lang");
         if (lang >= 0 && lang + 1 < e.Args.Length) Loc.Instance.Load(e.Args[lang + 1]);
         else Loc.Instance.LoadPreferred();

@@ -10,7 +10,8 @@ namespace AvellCC.Ipc;
 public static class Protocol
 {
     public const string PipeName = "AvellCC.Control";
-    public const int Version = 1;
+    /// <summary>2: adds freeMemory.</summary>
+    public const int Version = 2;
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -27,6 +28,7 @@ public static class Protocol
         public const string SaveCurve = "saveCurve";
         public const string SetFanMode = "setFanMode";
         public const string SetKeyboard = "setKeyboard";
+        public const string FreeMemory = "freeMemory";
     }
 }
 

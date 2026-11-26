@@ -4,6 +4,7 @@ using AvellCC.Core.Control;
 using AvellCC.Core.Ec;
 using AvellCC.Core.Fan;
 using AvellCC.Core.Keyboard;
+using AvellCC.Core.Maintenance;
 using AvellCC.Core.Safety;
 using AvellCC.Ipc;
 
@@ -31,6 +32,10 @@ public sealed class ControlHub : IDisposable
     private readonly string _machine;
     private readonly object _settingsLock = new();
     private AppSettings _settings = new();
+    private static readonly TimeSpan MemoryCooldown = TimeSpan.FromSeconds(20);
+    private readonly IMemoryCleaner _memoryCleaner;
+    private readonly object _memoryLock = new();
+    private DateTime _lastMemoryClean = DateTime.MinValue;
 
     public ControlHub(HubOptions options, ILogger<ControlHub> log)
     {
@@ -44,6 +49,7 @@ public sealed class ControlHub : IDisposable
         var direct = new DirectFanService(_ec, new EcRegisterBackupStore(Path.Combine(options.Root, "backup"), DirectFanService.BackupGroup),
                                           () => machine, vendor);
         _loop = new FanControlLoop(_ec, direct, vendor);
+        _memoryCleaner = options.Simulate ? new SimulatedMemoryCleaner() : new MemoryCleaner();
         _keyboardTransport = options.Simulate
             ? () => new LoggingTransport(log)
             : () => HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePage4Zone);
@@ -108,9 +114,26 @@ public sealed class ControlHub : IDisposable
             Protocol.Commands.SaveCurve => SaveCurve(Arg<FanCurve>(args)),
             Protocol.Commands.SetFanMode => SetFanMode(Arg<SetFanModeArgs>(args)),
             Protocol.Commands.SetKeyboard => SetKeyboard(Arg<KeyboardSettings>(args)),
+            Protocol.Commands.FreeMemory => FreeMemory(),
             _ => throw new ArgumentException($"Unknown command: {command}"),
         };
         return Task.FromResult(result);
+    }
+
+    /// <summary>"Free up memory" button. Rate-limited: repeating it only makes apps fault their pages back in.</summary>
+    private MemoryCleanResult FreeMemory()
+    {
+        lock (_memoryLock)
+        {
+            var since = DateTime.UtcNow - _lastMemoryClean;
+            if (since < MemoryCooldown)
+                throw new ArgumentException($"Memory was freed {since.TotalSeconds:0} s ago; wait {(MemoryCooldown - since).TotalSeconds:0} s.");
+            var result = _memoryCleaner.FreeUpMemory();
+            _lastMemoryClean = DateTime.UtcNow;
+            _log.LogInformation("Free up memory ({Method}): in use {Before} MB → {After} MB.",
+                                result.Method, result.InUseBefore >> 20, result.InUseAfter >> 20);
+            return result;
+        }
     }
 
     private object? SaveCurve(FanCurve curve)

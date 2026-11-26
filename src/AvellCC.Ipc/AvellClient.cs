@@ -4,6 +4,7 @@ using System.Text.Json;
 using AvellCC.Core.Control;
 using AvellCC.Core.Fan;
 using AvellCC.Core.Keyboard;
+using AvellCC.Core.Maintenance;
 
 namespace AvellCC.Ipc;
 
@@ -25,6 +26,8 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
         CallAsync<AppSettings>(Protocol.Commands.SetFanMode, new SetFanModeArgs(mode, curveName), c);
     public Task<AppSettings> SetKeyboardAsync(KeyboardSettings keyboard, CancellationToken c = default) =>
         CallAsync<AppSettings>(Protocol.Commands.SetKeyboard, keyboard, c);
+    public Task<MemoryCleanResult> FreeMemoryAsync(CancellationToken c = default) =>
+        CallAsync<MemoryCleanResult>(Protocol.Commands.FreeMemory, null, c);
 
     public async Task<T> CallAsync<T>(string command, object? args, CancellationToken cancel)
     {
@@ -39,7 +42,7 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
                     var request = new Request(++_nextId, command, args is null ? null : JsonSerializer.SerializeToElement(args, Protocol.Json));
                     await _writer!.WriteLineAsync(JsonSerializer.Serialize(request, Protocol.Json).AsMemory(), cancel).ConfigureAwait(false);
                     var line = await _reader!.ReadLineAsync(cancel).ConfigureAwait(false) ?? throw new IOException("Connection closed by the service.");
-                    var response = JsonSerializer.Deserialize<Response>(line, Protocol.Json) ?? throw new IOException("Resposta vazia.");
+                    var response = JsonSerializer.Deserialize<Response>(line, Protocol.Json) ?? throw new IOException("Empty response.");
                     if (!response.Ok) throw new ServiceException(response.Error ?? "Unknown service error.");
                     return response.Result is { } r ? r.Deserialize<T>(Protocol.Json)! : default!;
                 }
