@@ -30,8 +30,8 @@ public static class CurvePresets
     };
 
     /// <summary>
-    /// 100 % sempre (duty 200, o máximo que o EC aceita; ≈ 5543/5590 RPM medidos). Equivale ao "Fan Boost" do vendor,
-    /// a confirmar com `avellcc fan boost-test`.
+    /// 100 % sempre (duty 200, o máximo que o EC aceita; 5543/5590 RPM medidos). Equivale ao "Fan Boost" do vendor,
+    /// confirmado em 2026-11-26: o Fan Boost faz o próprio EC gravar duty 200 e dá 5543/5586 RPM.
     /// </summary>
     public static readonly FanCurve Max = new()
     {

@@ -256,9 +256,11 @@ Não é linear: ~68 RPM/% no começo e ~45 RPM/% no fim. Está codificada em `Fa
 #### Fan Boost do app da Avell
 
 `MyFanManager_Intel.SetFanBoost` faz só `0x751 |= 0x40`: é o **mesmo bit 6** ("full fan mode") do controle direto.
-Sem duty gravado, o EC acelera até o máximo dele. O duty aceita no máximo `0xC8` = 200 = 100 %
-(a Tuxedo recusa valores acima). Hipótese: **Fan Boost = duty 100 % ≈ 5543/5590 RPM**.
-Ainda falta medir com `avellcc fan boost-test`. O preset `max` (100 % sempre) cobre o mesmo caso no AvellCC.
+
+**Medido em 2026‑11‑26 (`avellcc fan boost-test 40`):** só com o bit 6 ligado, o próprio EC grava **duty 200/200**
+em `0x1804/0x1809` e as ventoinhas vão a **5543 / 5586 RPM** em ~3 s. É o mesmo valor do nosso controle direto a 100 %
+(5543 / 5590). **Fan Boost = 100 % = teto do EC** (`0xC8`; a Tuxedo recusa valores acima). Não existe rotação maior.
+No AvellCC, o preset `max` (100 % sempre) é o equivalente ao Fan Boost.
 
 **Este notebook: `0x78E = 0x0C` (bit 6 = 0), então NÃO tem controle universal.** Isso explica por que as sondas `0xF00` falharam.
 Caminhos restantes, em ordem: **(B)** Office + `0x727` bit 6; **(A)** controle direto `0x1804/0x1809`.
