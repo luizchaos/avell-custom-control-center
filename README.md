@@ -117,6 +117,12 @@ controller; it was built and tested carefully on one machine, but **use it at yo
 from interoperability analysis of the vendor software on the author's own machine, from public sources, and from
 hardware tests; no vendor code is included.
 
+## License
+
+AvellCC is free software, licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only).
+You may use, study, share and modify it; derivative works must be distributed under the same license.
+It comes with **no warranty** (see sections 15–16 of the license).
+
 ## Credits
 
 - [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL) — the direct fan-control mechanism for
