@@ -47,22 +47,32 @@ Reports for other models are welcome — please open an issue with the diagnosti
 
 ## Install
 
-Requires Windows 10/11 x64 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-(`winget install Microsoft.DotNet.SDK.8`). From an elevated PowerShell in the repository folder:
+Download **`AvellCC-<version>-x64.msi`** from [Releases](https://github.com/luizchaos/avell-custom-control-center/releases)
+and run it (Windows 10/11 x64; the .NET runtime is included, nothing else to install). The installer:
+
+- installs to `C:\Program Files\AvellCC` and registers the `AvellCC` service (LocalSystem, automatic start, automatic
+  restart on failure);
+- **stops Avell Custom Control and disables its `GCUBridge` service** (one controller at a time, see
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md));
+- adds a Start Menu shortcut, starts the tray app when you sign in, and offers to open it at the end.
+
+Fans start in **firmware** mode; pick a curve in the **Fans** tab and click **Apply mode**. New versions install over the
+old one (settings kept). **Uninstall** from *Settings → Apps*: the service is removed, the fans go back to the firmware
+and `GCUBridge` is set back to automatic start. Backups and settings in `C:\ProgramData\AvellCC` are always kept.
+
+Windows SmartScreen may warn on first run because the MSI is not code-signed; check the SHA-256 published with the release.
+
+### Install from source (developers)
+
+With the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), from an elevated PowerShell in the repository:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```
 
-The script runs the tests, publishes to `C:\Program Files\AvellCC`, **stops and disables the vendor's `GCUBridge`
-service**, creates the `AvellCC` service (LocalSystem, automatic start, automatic restart on failure), adds a Start Menu
-shortcut and opens the app. Fans start in **firmware** mode; pick a curve in the **Fans** tab and click **Apply mode**.
-
-Uninstall (keeps the backups; `-RestoreVendor` re-enables Avell Custom Control):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\uninstall.ps1 -RestoreVendor
-```
+Same result as the MSI, built from your checkout (framework-dependent, in `App\`, `Service\` and `Cli\` subfolders).
+Remove it with `tools\uninstall.ps1 -RestoreVendor` **before** installing the MSI (the MSI refuses to install over it).
+Build the MSI yourself with `tools\build-msi.ps1` (no admin needed; uses the WiX Toolset 5 local tool) → `dist\`.
 
 ### Firmware vs. AvellCC curve
 
@@ -95,7 +105,8 @@ src/AvellCC.Service  Windows service (power events, automatic restart)
 src/AvellCC.App      WPF UI + tray, Languages/*.json
 src/AvellCC.Cli      avellcc.exe: diagnostics and hardware experiments (refuses to write while the service runs)
 tests/               unit and integration tests (fake EC, fake HID transport, real named pipe)
-tools/               read-only diagnostic (PowerShell), install.ps1, uninstall.ps1
+tools/               read-only diagnostic (PowerShell), install.ps1, uninstall.ps1, build-msi.ps1
+installer/           WiX 5 package definition (AvellCC.wxs)
 curves/              example curves and the probes used in the hardware tests
 docs/                hardware notes and architecture
 ```

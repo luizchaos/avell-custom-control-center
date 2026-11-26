@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AvellCC MSI (WiX Toolset 5). Build with tools\build-msi.ps1, which publishes the binaries and passes:
+    SourceDir   folder with the self-contained app + service (+ Cli\ subfolder)
+    Version     product version (from AvellCC.App.csproj)
+    IconFile    src\AvellCC.App\Assets\AvellCC.ico
+    LicenseRtf  LICENSE converted to RTF (shown on the first dialog)
+
+  What the package does (same as tools\install.ps1):
+    - installs to C:\Program Files\AvellCC
+    - registers the "AvellCC" service (LocalSystem, automatic, restart on failure) and starts it
+    - Rule 1 (one controller at a time): stops Avell Custom Control and disables its GCUBridge service
+    - Start Menu shortcut; offers to launch the app at the end. The app itself turns on "start with Windows"
+      on its first run (once per user, so turning it off in Settings survives updates)
+  On uninstall: stops and removes the service (the fans go back to the firmware), re-enables GCUBridge and
+  removes the "start with Windows" entry.
+  Backups and settings in C:\ProgramData\AvellCC are never touched.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="AvellCC"
+           Manufacturer="AvellCC contributors"
+           Version="$(var.Version)"
+           UpgradeCode="D9009204-E6F3-473F-93A3-9DEB89FC61EC"
+           Scope="perMachine"
+           Language="1033"
+           Compressed="yes">
+
+    <SummaryInformation Description="AvellCC - fan curves and keyboard RGB for Avell / Uniwill laptops" />
+    <!-- Same-version rebuilds replace each other instead of installing side by side -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of AvellCC is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AvellCC.ico" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AvellCC.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/luizchaos/avell-custom-control-center" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/luizchaos/avell-custom-control-center/issues" />
+
+    <!-- An install made by tools\install.ps1 registered the same service name from another folder: MSI cannot take it over. -->
+    <Property Id="SCRIPTSERVICEPATH">
+      <RegistrySearch Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\AvellCC" Name="ImagePath" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR NOT (SCRIPTSERVICEPATH &gt;&lt; &quot;\Service\AvellCC.Service.exe&quot;)"
+            Message="AvellCC was installed with tools\install.ps1. Remove that copy first (elevated PowerShell: tools\uninstall.ps1), then run this installer again. Your settings and backups are kept." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="AvellCC" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="AvellCC" Level="1" AllowAbsent="no">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="AppExe" />
+      <ComponentRef Id="ServiceExe" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!-- UI: license (GPL-3.0) → install → finish, with "Launch AvellCC" -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch AvellCC" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#AppExe]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+
+    <!-- Rule 1: stop Avell Custom Control and disable GCUBridge before our service starts. Errors ignored
+         (the vendor app may not be installed). -->
+    <SetProperty Id="DisableVendor" Sequence="execute" Before="DisableVendor" Condition="NOT (REMOVE~=&quot;ALL&quot;)"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c &quot;taskkill /f /im ControlCenterU.exe &amp; taskkill /f /im OSDTpDetect.exe &amp; taskkill /f /im EnableTray.exe &amp; sc stop GCUBridge &amp; sc config GCUBridge start= disabled&quot;" />
+    <CustomAction Id="DisableVendor" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- Uninstall (not upgrade): give the laptop back to Avell Custom Control at the next start. -->
+    <SetProperty Id="RestoreVendor" Sequence="execute" Before="RestoreVendor"
+                 Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c &quot;sc config GCUBridge start= auto&quot;" />
+    <CustomAction Id="RestoreVendor" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- Uninstall (not upgrade): remove the "start with Windows" entry the app created for the user running the
+         uninstall. QuietExec children run as SYSTEM even when "impersonated", so address the hive by SID, not HKCU. -->
+    <SetProperty Id="RemoveRunEntry" Sequence="execute" Before="RemoveRunEntry"
+                 Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c &quot;reg delete HKU\[UserSID]\Software\Microsoft\Windows\CurrentVersion\Run /v AvellCC /f &amp; reg delete HKU\[UserSID]\Software\AvellCC /v StartupInitialized /f&quot;" />
+    <CustomAction Id="RemoveRunEntry" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="DisableVendor" Before="StartServices" Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
+      <Custom Action="RestoreVendor" Before="InstallFinalize" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RemoveRunEntry" Before="InstallFinalize" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+  </Package>
+
+  <Fragment>
+    <!-- Everything published except the two executables that need their own components -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.SourceDir)\**">
+        <Exclude Files="$(var.SourceDir)\AvellCC.exe" />
+        <Exclude Files="$(var.SourceDir)\AvellCC.Service.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="AppExe" Directory="INSTALLFOLDER">
+      <File Id="AppExe" Source="$(var.SourceDir)\AvellCC.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Start Menu (all users). Shortcut components need an HKCU key path (ICE43/ICE57). -->
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
+      <Shortcut Id="StartMenuShortcut" Name="AvellCC" Description="AvellCC - fans and keyboard"
+                Target="[INSTALLFOLDER]AvellCC.exe" WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\AvellCC" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="ServiceExe" Directory="INSTALLFOLDER">
+      <File Id="ServiceExe" Source="$(var.SourceDir)\AvellCC.Service.exe" KeyPath="yes" />
+      <ServiceInstall Id="AvellCCService" Name="AvellCC" DisplayName="AvellCC (fans and keyboard)"
+                      Description="Controls the fans (AvellCC curve) and keyboard RGB of Avell/Uniwill laptops. Stopping the service hands the fans back to the firmware."
+                      Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem" Vital="yes">
+        <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="5" ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <!-- Stopping the service on upgrade/uninstall hands the fans back to the firmware -->
+      <ServiceControl Id="AvellCCServiceControl" Name="AvellCC" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+    </Component>
+  </Fragment>
+</Wix>
