@@ -4,6 +4,7 @@
     <AssemblyName>avellcc</AssemblyName>
     <RootNamespace>AvellCC.Cli</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\AvellCC.App\Assets\AvellCC.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AvellCC.Core\AvellCC.Core.csproj" />

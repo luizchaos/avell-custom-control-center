@@ -24,7 +24,8 @@ public sealed class IpcTests : IAsyncLifetime
         Protocol.Commands.Status => new ControlStatus { State = LoopState.Curve, CpuTemp = 61, Fan1Rpm = 3200, CurveName = "balanced" },
         Protocol.Commands.ListCurves => CurvePresets.All,
         Protocol.Commands.SetFanMode => SetMode(args!.Value.Deserialize<SetFanModeArgs>(Protocol.Json)!),
-        _ => throw new ArgumentException($"Comando desconhecido: {command}"),
+        Protocol.Commands.FreeMemory => new AvellCC.Core.Maintenance.MemoryCleanResult(64UL << 30, 16UL << 30, 12UL << 30, "test"),
+        _ => throw new ArgumentException($"Unknown command: {command}"),
     });
 
     private AppSettings SetMode(SetFanModeArgs a)
@@ -67,7 +68,23 @@ public sealed class IpcTests : IAsyncLifetime
     {
         using var client = new AvellClient(_pipe);
         var ex = await Assert.ThrowsAsync<ServiceException>(() => client.CallAsync<object>("nope", null, default));
-        Assert.Contains("desconhecido", ex.Message);
+        Assert.Contains("Unknown command", ex.Message);
+    }
+
+    [Fact]
+    public async Task Free_memory_result_round_trips()
+    {
+        using var client = new AvellClient(_pipe);
+        var r = await client.FreeMemoryAsync();
+        Assert.Equal(16UL << 30, r.InUseBefore);
+        Assert.Equal(12UL << 30, r.InUseAfter);
+        Assert.Equal(4UL << 30, r.Freed);
+    }
+
+    [Fact]
+    public void Freed_memory_is_never_negative()
+    {
+        Assert.Equal(0UL, new AvellCC.Core.Maintenance.MemoryCleanResult(100, 40, 45, "x").Freed);
     }
 
     [Fact]

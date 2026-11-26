@@ -1,7 +1,7 @@
 # Investigation: "Free up memory" and "Clean up the disk"
 
-Requested as dashboard buttons, like the ones in *MSI Center*. **Nothing here is implemented yet.**
-This page records what each button can really do on Windows, the risks, and a recommendation.
+Requested as dashboard buttons, like the ones in *MSI Center*. This page records what each button can really do on
+Windows, the risks, and what AvellCC implements (see **Implemented** at the end of each section).
 
 ## Free up memory (RAM)
 
@@ -46,9 +46,23 @@ during games, causing stutter; tools like ISLC purge it only when free memory dr
 Easy: the **service** already runs as LocalSystem (has the privileges), so it would be one new pipe command
 (`trimMemory { workingSets, standby }`) calling `NtSetSystemInformation`, plus a button with a confirmation. ~100 lines.
 
-**Recommendation:** if added, offer only *"Purge standby cache"* with an honest tooltip
-("frees cached memory; apps may load slower right after"), never run it automatically, and do not trim working sets.
-A low-value feature; it mostly makes a number look better.
+### Implemented: trim working sets only
+
+The first draft of this page suggested purging the standby list. On closer look that is the worse choice for a button:
+
+- the dashboard's *Memory %* is RAM **in use**; the standby cache is already counted as available, so purging it
+  changes nothing on screen — the user clicks and sees no effect;
+- it is also the only one of the three actions with a real cost (lost file cache → slower next launches).
+
+Trimming working sets is what MSI Center's button does, it is what lowers *in use*, and the trimmed pages stay in RAM on
+the standby/modified lists, so programs get them back with cheap soft faults. So AvellCC does exactly that and nothing else:
+
+- **Service** (`Core/Maintenance/MemoryCleaner`): `NtSetSystemInformation(SystemMemoryListInformation, MemoryEmptyWorkingSets)`
+  after enabling `SeProfileSingleProcessPrivilege` / `SeIncreaseQuotaPrivilege`; falls back to `EmptyWorkingSet` per
+  process. The standby list is never purged. Returns RAM in use before/after; rate-limited to once every 20 s.
+- **Pipe command** `freeMemory` (protocol version 2). In `--simulate` it touches nothing and fakes an 18 % drop.
+- **Dashboard**: *Free up memory* button on the Memory tile, tooltip explaining that nothing is closed and the gain is
+  mostly visual, result shown for 15 s ("Freed 3.1 GB (in use 16.2 GB → 13.1 GB)"). Never runs automatically.
 
 ## Clean up the disk
 
@@ -70,3 +84,9 @@ On the test laptop `%TEMP%` held ~3.9 GB, which is the typical win.
 2. **Optional later:** an own "safe subset" dialog (temp > 24 h, Recycle Bin, shader caches) with a size preview and
    confirmation. Temp and shader-cache cleanup runs as the user (no service needed); `C:\Windows\Temp` and DISM need the service.
 3. Never delete user folders, and never run cleanup automatically.
+
+### Implemented: step 1
+
+The Disk tile has a *Clean up disk* button that opens `ms-settings:storagesense` (Settings → System → Storage:
+cleanup recommendations, temporary files, Storage Sense) and a *Disk Cleanup (classic)* link that starts `cleanmgr.exe`
+(also used if Settings cannot be opened). Both run as the user; AvellCC deletes nothing itself. Step 2 is not implemented.

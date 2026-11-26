@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using AvellCC.App.Localization;
 using AvellCC.Core.Control;
 using AvellCC.Core.Monitoring;
+using AvellCC.Ipc;
 
 namespace AvellCC.App;
 
@@ -73,6 +74,8 @@ public partial class DashboardPanel : UserControl
     private SystemSnapshot? _snapshot;
     private ControlStatus? _status;
     private bool _sampling;
+    private bool _freeingMemory;
+    private DateTime _memoryResultUntil;
 
     public DashboardPanel()
     {
@@ -89,11 +92,72 @@ public partial class DashboardPanel : UserControl
         Render();
     }
 
+    /// <summary>Service client, for the actions that need administrator rights (free up memory).</summary>
+    public AvellClient? Client { get; set; }
+
     /// <summary>Latest status from the service (null = service unavailable).</summary>
     public void UpdateStatus(ControlStatus? status)
     {
         _status = status;
         Render();
+    }
+
+    // ------------------------------------------------------------------ actions
+
+    private async void FreeMemory_Click(object sender, RoutedEventArgs e)
+    {
+        if (Client is null) return;
+        _freeingMemory = true;
+        Render();
+        try
+        {
+            var r = await Client.FreeMemoryAsync();
+            ShowMemoryResult(Loc.T("dash.freedMemory", MonitorMath.Bytes(r.Freed), MonitorMath.Bytes(r.InUseBefore), MonitorMath.Bytes(r.InUseAfter)));
+            await SampleAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowMemoryResult(ex.Message, error: true);
+        }
+        finally
+        {
+            _freeingMemory = false;
+            Render();
+        }
+    }
+
+    private void ShowMemoryResult(string text, bool error = false)
+    {
+        MemoryResult.Text = text;
+        MemoryResult.Foreground = Brush(error ? "Warn" : "Ok");
+        MemoryResult.Visibility = Visibility.Visible;
+        _memoryResultUntil = DateTime.UtcNow.AddSeconds(15);
+    }
+
+    /// <summary>Windows Settings → Storage (cleanup recommendations, temporary files, Storage Sense).</summary>
+    private void CleanDisk_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Launch("ms-settings:storagesense")) CleanDiskClassic_Click(sender, e);
+    }
+
+    /// <summary>The classic Disk Cleanup tool.</summary>
+    private void CleanDiskClassic_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Launch("cleanmgr.exe"))
+            MessageBox.Show(Window.GetWindow(this)!, Loc.T("dash.cleanDiskFailed"), "AvellCC", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private static bool Launch(string target)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true })?.Dispose();
+            return true;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private async Task SampleAsync()
@@ -178,6 +242,10 @@ public partial class DashboardPanel : UserControl
                          ?? s.Drives.FirstOrDefault();
             DiskDetail.Text = system is null ? "" : Loc.T("dash.diskDetail", system.Name, MonitorMath.Bytes(system.Free), MonitorMath.Bytes(system.Total));
         }
+
+        FreeMemoryButton.IsEnabled = status is not null && Client is not null && !_freeingMemory;
+        FreeMemoryButton.Content = Loc.T(_freeingMemory ? "dash.freeingMemory" : "dash.freeMemory");
+        if (MemoryResult.Visibility == Visibility.Visible && DateTime.UtcNow > _memoryResultUntil) MemoryResult.Visibility = Visibility.Collapsed;
 
         // ---- fans (service)
         if (status is not null)

@@ -1,4 +1,4 @@
-# AvellCC — Avell Custom Control Center
+# <img src="docs/images/icon.png" alt="AvellCC icon" width="48" align="center"> AvellCC — Avell Custom Control Center
 
 Open replacement for *Avell Custom Control* on Windows: **keyboard RGB** and **custom fan curves** for Avell laptops
 built on the **Uniwill** (TongFang-family) platform.
@@ -10,7 +10,8 @@ built on the **Uniwill** (TongFang-family) platform.
   100 % emergency override, and automatic hand-back to the firmware on stop, sleep or error.
 - **Keyboard RGB (4 zones)** — single color, one color per zone, or firmware effects with your own palette.
 - **Dashboard** — CPU and per-GPU usage rings with EC temperatures, memory, disk activity, VRAM, drive space,
-  network throughput, power plan / mode and battery (read from Windows counters, no admin).
+  network throughput, power plan / mode and battery (read from Windows counters, no admin), plus *Free up memory* and
+  *Clean up disk* buttons (what they really do: [docs/CLEANUP.md](docs/CLEANUP.md)).
 - **Tray app** — live temperatures, RPM and duty, quick fan-mode switch, starts with Windows.
 - **English and Portuguese UI** — one JSON file per language, easy to extend
   (see [src/AvellCC.App/Languages/README.md](src/AvellCC.App/Languages/README.md)).

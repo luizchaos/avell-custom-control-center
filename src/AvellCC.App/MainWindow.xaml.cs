@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         _client = client;
         _simulate = simulate;
         InitializeComponent();
-        Icon = ToImageSource(AppIcon.Create(LoopState.Curve));
+        Dashboard.Client = client;
 
         CpuGrid.ItemsSource = _cpu;
         GpuGrid.ItemsSource = _gpu;
@@ -489,7 +489,4 @@ public partial class MainWindow : Window
             MessageBox.Show(this, ex.Message, "AvellCC", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
-
-    private static ImageSource ToImageSource(System.Drawing.Icon icon) =>
-        Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 }

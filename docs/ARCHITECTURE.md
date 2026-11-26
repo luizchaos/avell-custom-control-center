@@ -122,7 +122,8 @@ Last line of defence: the CPU throttles itself at Tjmax, and the EC has its own 
 | Validation | the service validates every curve and keyboard setting; the UI validates too, to show errors earlier |
 | UI | `AvellCC.exe`: Dashboard, Fans (mode + editor with chart), Keyboard, Settings; closing goes to the tray |
 | System readings | `Core/Monitoring/SystemMonitor` runs **in the UI process** (normal user): CPU (`GetSystemTimes`), GPU per adapter and VRAM (PDH `GPU Engine` / `GPU Adapter Memory`, names via DXGI), disk active time (PDH `PhysicalDisk`), memory, drives, network, power plan. Sampled every 1 s only while the Dashboard is visible. Temperatures and fans still come from the service. `avellcc sys` prints the same data |
-| Cleanup buttons | investigated, not implemented: see [CLEANUP.md](CLEANUP.md) |
+| Cleanup buttons | *Free up memory* → pipe `freeMemory` → service trims all working sets (admin; standby cache untouched; once per 20 s). *Clean up disk* → opens Windows Storage settings / `cleanmgr.exe` as the user. Rationale: [CLEANUP.md](CLEANUP.md) |
+| Icon | drawn in code (`App/AppIcon.cs`): exe icon `Assets\AvellCC.ico` (generated with `AvellCC.exe --export-icon`), tray icon = same drawing + status dot |
 | Localization | `Languages\<code>.json` next to the exe; see `src/AvellCC.App/Languages/README.md` |
 
 **Pipe security:** any signed-in user can change the curve and the RGB, but cannot go past the limits the service
