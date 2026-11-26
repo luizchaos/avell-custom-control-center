@@ -1,0 +1,8 @@
+// SONDA: 100 % a partir de 40 °C, com 0x751 = 0xA0 (modo Standard do vendor, usado no primeiro teste).
+{
+  "name": "probe-max-standard",
+  "hysteresis": 4,
+  "ecMode": "standard",
+  "cpu": [ { "temp": 20, "duty": 70 }, { "temp": 40, "duty": 100 } ],
+  "gpu": [ { "temp": 20, "duty": 70 }, { "temp": 40, "duty": 100 } ]
+}

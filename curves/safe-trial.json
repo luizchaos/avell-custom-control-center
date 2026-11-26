@@ -3,6 +3,7 @@
 {
   "name": "safe-trial",
   "hysteresis": 4,
+  "ecMode": "standard",
   "cpu": [
     { "temp": 40, "duty": 30 },
     { "temp": 55, "duty": 40 },

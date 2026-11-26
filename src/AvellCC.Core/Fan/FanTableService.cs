@@ -16,6 +16,8 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
     public const byte QuietBit = 0x04;
     /// <summary>0x751 no modo Standard do vendor (MyFanManager_Intel.SetFanMode(2)).</summary>
     public const byte FanControlStandard = 0xA0;
+    /// <summary>0x751 no modo Performance/Benchmark do vendor (bit 6 = FanBoost).</summary>
+    public const byte FanControlPerformance = 0x40;
 
     public enum WriteOrder
     {
@@ -58,8 +60,8 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
     }
 
     /// <summary>
-    /// Aplica uma curva: grava e confere a tabela e SÓ DEPOIS liga a tabela do usuário,
-    /// replicando o modo Standard do vendor (0x751 = 0xA0; 0x7A5: bit 3 ligado, bit 2 desligado).
+    /// Aplica uma curva: grava e confere a tabela e SÓ DEPOIS liga a tabela do usuário
+    /// (0x7A5: bit 3 ligado, bit 2 desligado; 0x751 conforme <see cref="FanCurve.EcMode"/>).
     /// </summary>
     public byte[] ApplyCurve(FanCurve curve)
     {
@@ -68,8 +70,12 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
         var modes = new Dictionary<ushort, byte>
         {
             [EcAddresses.ApOemByte3] = (byte)((current0x7A5 & ~QuietBit) | UserTableBit),
-            [EcAddresses.FanControl] = FanControlStandard,
         };
+        switch (curve.EcMode)
+        {
+            case "standard": modes[EcAddresses.FanControl] = FanControlStandard; break;
+            case "performance": modes[EcAddresses.FanControl] = FanControlPerformance; break;
+        }
         Apply(modes, table, WriteOrder.TableFirst, $"curve-{curve.Name}");
         return table;
     }

@@ -20,6 +20,14 @@ public sealed record FanCurve
 
     [JsonPropertyName("name")] public string Name { get; init; } = "custom";
     [JsonPropertyName("hysteresis")] public int Hysteresis { get; init; } = 4;
+
+    /// <summary>
+    /// O que gravar em 0x751 ao ativar a tabela:
+    /// "keep" = não mexe (fica o valor atual, 0x00 no estado de fábrica);
+    /// "standard" = 0xA0 (modo Standard do vendor; no teste de 2026-11-26 as ventoinhas travaram em ~4000 RPM);
+    /// "performance" = 0x40 (FanBoost do vendor).
+    /// </summary>
+    [JsonPropertyName("ecMode")] public string EcMode { get; init; } = "keep";
     [JsonPropertyName("cpu")] public CurvePoint[] Cpu { get; init; } = [];
     [JsonPropertyName("gpu")] public CurvePoint[] Gpu { get; init; } = [];
 
@@ -41,6 +49,8 @@ public sealed record FanCurve
         var errors = new List<string>();
         if (Hysteresis is < MinHysteresis or > MaxHysteresis)
             errors.Add($"hysteresis deve estar entre {MinHysteresis} e {MaxHysteresis} °C (é {Hysteresis}).");
+        if (EcMode is not ("keep" or "standard" or "performance"))
+            errors.Add($"ecMode deve ser keep, standard ou performance (é '{EcMode}').");
         ValidatePoints("cpu", Cpu, errors);
         ValidatePoints("gpu", Gpu, errors);
         if (errors.Count > 0) throw new FanCurveException(errors);

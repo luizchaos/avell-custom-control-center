@@ -84,7 +84,7 @@ public sealed class FanCurveTests : IDisposable
     public void Apply_curve_writes_table_before_enabling_user_table()
     {
         _ec.Seed(EcAddresses.ApOemByte3, [0x04]);   // quiet ligado
-        var table = Service().ApplyCurve(Good);
+        var table = Service().ApplyCurve(Good with { EcMode = "standard" });
 
         Assert.Equal(table, _ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength));
         Assert.Equal(0x08, _ec.Read(EcAddresses.ApOemByte3));           // bit 3 ligado, bit 2 desligado
@@ -93,6 +93,32 @@ public sealed class FanCurveTests : IDisposable
         var lastTableWrite = _ec.Writes.FindLastIndex(w => w.Address is >= EcAddresses.FanTableStart and < EcAddresses.FanTableStart + EcAddresses.FanTableLength);
         var enableWrite = _ec.Writes.FindIndex(w => w.Address == EcAddresses.ApOemByte3);
         Assert.True(enableWrite > lastTableWrite, "a tabela do usuário só pode ser ligada depois da tabela gravada");
+    }
+
+    [Theory]
+    [InlineData("keep", 0x00)]
+    [InlineData("standard", 0xA0)]
+    [InlineData("performance", 0x40)]
+    public void EcMode_controls_0x751(string mode, byte expected)
+    {
+        Service().ApplyCurve(Good with { EcMode = mode });
+        Assert.Equal(expected, _ec.Read(EcAddresses.FanControl));
+        Assert.Equal(FanTableService.UserTableBit, _ec.Read(EcAddresses.ApOemByte3));
+        if (mode == "keep") Assert.DoesNotContain(_ec.Writes, w => w.Address == EcAddresses.FanControl);
+    }
+
+    [Fact]
+    public void Unknown_ecMode_is_rejected() =>
+        Assert.Throws<FanCurveException>((Good with { EcMode = "turbo" }).Validate);
+
+    [Theory]
+    [InlineData("probe-max-keep.json")]
+    [InlineData("probe-max-standard.json")]
+    public void Probe_curves_demand_full_speed_at_idle(string file)
+    {
+        var curve = FanCurve.Load(Path.Combine(Path.GetDirectoryName(RepoCurve)!, file));
+        var levels = FanTableEncoder.Decode(FanTableEncoder.Encode(curve), 0x00);
+        Assert.Equal(100, FanTableEncoder.ExpectedDuty(levels, 45));
     }
 
     [Fact]

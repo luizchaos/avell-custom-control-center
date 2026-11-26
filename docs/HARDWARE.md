@@ -104,6 +104,27 @@ Consequências:
 - Para aplicar uma curva nossa (M3), a ordem é a inversa: gravar e conferir a tabela, e **só depois** ligar o bit 3 de `0x7A5`.
 - Não dá para "partir da curva de fábrica" lendo o EC. O editor vai começar de um preset nosso, com valores conservadores.
 
+#### Teste 1 — `safe-trial` com `0x751 = 0xA0` (2026‑11‑26, 10:49–10:53)
+
+| Situação | CPU | fan1 | fan2 |
+|---|---|---|---|
+| Firmware, ocioso | 53–54 °C | ~2040 | 2168 |
+| Firmware, carga (diagnóstico das 10:17) | 82–84 °C | 5085–5097 | 4984 |
+| Tabela, "41,5 %" | 54 °C | 2049–2137 | 2148 |
+| Tabela, "70 %" | 73 °C | 3850–3993 | 3684 |
+| Tabela, "79–94 %" | 76–80 °C | **trava em ~3993** | **trava em 3684** |
+| Firmware logo após restaurar | 74 °C | 4244 | 3960 |
+
+- Com bit 3 de `0x7A5` + `0x751 = 0xA0`, as ventoinhas **não passaram de ~4000 RPM**, e a CPU ficou em 80 °C (provável throttling).
+  O firmware puro passa de 5000 nessa temperatura.
+- No ocioso o RPM foi igual ao do firmware. **Não é conclusivo** se o EC seguiu a tabela, ou se o teto veio do modo `0xA0`.
+- Gravar a curva (98 escritas + conferência) levou **~40 s**; restaurar levou ~45 s.
+- **fan2** sobe em degraus exatos de 256 (0x864, 0x964, 0xA64…): o byte baixo em `0x46B` quase não muda.
+  Suspeita: o byte baixo não está em `0x46B`. Investigar com `fan monitor --raw` (faixa `0x460–0x46F`).
+
+Próximo passo: sondas com **100 % a partir de 40 °C** (`curves/probe-max-keep.json` e `probe-max-standard.json`).
+Se as ventoinhas dispararem ociosas, fica provado que o EC segue a tabela, e o teste mostra o RPM máximo e o `ecMode` certo.
+
 ### Outros
 
 | Endereço | Uso |

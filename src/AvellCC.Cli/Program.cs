@@ -14,15 +14,19 @@ using AvellCC.Core.Safety;
 //   avellcc kb effect <nome> [-s 0-4] [-b 0-4] [-d ltr|rtl|btt|ttb] [-c RRGGBB,RRGGBB,...] [--save] [--raw]
 //   avellcc kb brightness <0-4> | kb off | kb raw <9 bytes hex>
 
+Console.OutputEncoding = System.Text.Encoding.UTF8;
 if (args.Length == 0) return Usage();
+
+var rawBytes = args.Contains("--raw");
+args = args.Where(a => a != "--raw").ToArray();
 
 try
 {
     return args switch
     {
-        ["kb", ..] => Keyboard(args[1..]),
+        ["kb", ..] => Keyboard(rawBytes ? [.. args[1..], "--raw"] : args[1..]),
         ["fan", "preview", var path] => Preview(FanCurve.Load(path)),
-        _ => Ec(args),
+        _ => Ec(args, rawBytes),
     };
 }
 catch (VendorRunningException ex) { Console.Error.WriteLine(ex.Message); return 3; }
@@ -30,7 +34,7 @@ catch (ManagementException ex) { Console.Error.WriteLine($"Falha no WMI ({ex.Err
 catch (UnauthorizedAccessException) { Console.Error.WriteLine("Acesso negado. Comandos de EC exigem administrador."); return 4; }
 catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 1; }
 
-static int Ec(string[] args)
+static int Ec(string[] args, bool rawBytes)
 {
     using var ec = new WmiEc();
     var store = new FanTableBackupStore();
@@ -70,12 +74,12 @@ static int Ec(string[] args)
         case ["fan", "monitor", ..]:
             var seconds = args.Length > 2 ? int.Parse(args[2], CultureInfo.InvariantCulture) : 60;
             Console.WriteLine($"Tabela do usuário ativa: {(fan.IsUserTableActive() ? "SIM" : "não (curva interna do firmware)")}");
-            Monitor(ec, TimeSpan.FromSeconds(seconds), levels: null, watchdog: null, cancel: CancellationToken.None);
+            Monitor(ec, TimeSpan.FromSeconds(seconds), levels: null, watchdog: null, rawBytes, CancellationToken.None);
             return 0;
 
         case ["fan", "trial", var curvePath, ..]:
             var duration = args.Length > 3 ? int.Parse(args[3], CultureInfo.InvariantCulture) : 180;
-            return Trial(ec, fan, FanCurve.Load(curvePath), TimeSpan.FromSeconds(duration));
+            return Trial(ec, fan, FanCurve.Load(curvePath), TimeSpan.FromSeconds(duration), rawBytes);
 
         default:
             return Usage();
@@ -94,14 +98,15 @@ static int Preview(FanCurve curve)
     Console.WriteLine($"raw 0xF00: {Convert.ToHexString(table)}");
     return 0;
 
-    static string Fmt(byte end) => end == 0xFF ? "∞" : end.ToString(CultureInfo.InvariantCulture);
+    static string Fmt(byte end) => end == 0xFF ? "max" : end.ToString(CultureInfo.InvariantCulture);
 }
 
-static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan duration)
+static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan duration, bool rawBytes)
 {
     Preview(curve);
+    Console.WriteLine($"ecMode: {curve.EcMode}");
     Console.WriteLine();
-    Console.WriteLine("Estado antes:"); Monitor(ec, TimeSpan.Zero, null, null, CancellationToken.None);
+    Console.WriteLine("Estado antes:"); Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
 
     using var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
@@ -112,7 +117,8 @@ static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan dur
     Console.WriteLine("\nCurva aplicada. Monitorando com watchdog. Ctrl+C restaura o original.");
 
     var levels = (FanTableEncoder.Decode(table, 0x00), FanTableEncoder.Decode(table, 0x30));
-    var abort = Monitor(ec, duration, levels, new FanWatchdog(), cts.Token);
+    Console.WriteLine($"0x751=0x{ec.Read(EcAddresses.FanControl):X2}  0x7A5=0x{ec.Read(EcAddresses.ApOemByte3):X2}");
+    var abort = Monitor(ec, duration, levels, new FanWatchdog(), rawBytes, cts.Token);
 
     bool keep;
     if (abort is not null) { Console.WriteLine($"\n!! WATCHDOG: {abort}"); keep = false; }
@@ -127,18 +133,19 @@ static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan dur
     Console.WriteLine("Restaurando o original...");
     fan.RestoreOriginal();
     Console.WriteLine("\nOriginal restaurado e conferido.");
-    Monitor(ec, TimeSpan.Zero, null, null, CancellationToken.None);
+    Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
     return abort is null ? 0 : 5;
 }
 
 /// <summary>Imprime amostras até o fim do tempo. Retorna o motivo de aborto do watchdog, se houver.</summary>
-static string? Monitor(IEcAccess ec, TimeSpan duration, (EncodedLevel[] Cpu, EncodedLevel[] Gpu)? levels, FanWatchdog? watchdog, CancellationToken cancel)
+static string? Monitor(IEcAccess ec, TimeSpan duration, (EncodedLevel[] Cpu, EncodedLevel[] Gpu)? levels, FanWatchdog? watchdog, bool rawBytes, CancellationToken cancel)
 {
     var end = DateTimeOffset.Now + duration;
     do
     {
         var s = FanSample.Read(ec);
         var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  GPU {s.GpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
+        if (rawBytes) line += $"  [460..46F] {Convert.ToHexString(ec.ReadRange(0x460, 16))}";
         if (levels is { } l)
         {
             var cpuDuty = FanTableEncoder.ExpectedDuty(l.Cpu, s.CpuTemp);
@@ -195,8 +202,8 @@ static int Usage()
     Console.Error.WriteLine("""
         uso:
           avellcc fan preview <curva.json>                                      (simula, não grava)
-          avellcc status | fan show | fan backup | fan monitor [segundos]       (admin, só leitura)
-          avellcc fan trial <curva.json> [segundos]                             (admin, GRAVA com watchdog)
+          avellcc status | fan show | fan backup | fan monitor [segundos] [--raw] (admin, só leitura)
+          avellcc fan trial <curva.json> [segundos] [--raw]                     (admin, GRAVA com watchdog)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info
           avellcc kb color <RRGGBB> [-b 0-4] [--save] [--raw]

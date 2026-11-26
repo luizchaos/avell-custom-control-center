@@ -1,0 +1,9 @@
+// SONDA: 100 % a partir de 40 °C. Se o EC seguir a tabela, as ventoinhas vão ao máximo mesmo ociosas.
+// "keep": liga só o bit 3 de 0x7A5 e não mexe em 0x751.
+{
+  "name": "probe-max-keep",
+  "hysteresis": 4,
+  "ecMode": "keep",
+  "cpu": [ { "temp": 20, "duty": 70 }, { "temp": 40, "duty": 100 } ],
+  "gpu": [ { "temp": 20, "duty": 70 }, { "temp": 40, "duty": 100 } ]
+}
