@@ -52,9 +52,18 @@ public static class Ite8291
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(zone, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(zone, Zones);
-        var c = CorrectColor4Zone(projectId, color);
-        return Packet(CmdSetColor, 0x00, (byte)zone, c.R, c.G, c.B);
+        return SetSlotColor(zone, CorrectColor4Zone(projectId, color));
     }
+
+    /// <summary>Cor crua de um slot (1..7), sem correção. Slots 1..4 = zonas; 1..N = paleta dos efeitos.</summary>
+    public static byte[] SetSlotColor(int slot, Rgb color)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(slot, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(slot, MaxColorSlots);
+        return Packet(CmdSetColor, 0x00, (byte)slot, color.R, color.G, color.B);
+    }
+
+    public const int MaxColorSlots = 7;
 
     public static byte[] QueryFirmware() => Packet(CmdGetFirmware);
     public static byte[] QueryEffect() => Packet(CmdGetEffect);

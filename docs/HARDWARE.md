@@ -194,5 +194,29 @@ senão:
 
 Este notebook tem Project ID `0x0F`, então vale o ramo **"senão"**: `(R, 100·G/255, 200·B/255)`.
 
-Sequência típica para cor fixa em 4 zonas (protocolo ITE 8291 padrão): enviar `0x14` para os slots `1..4` com as cores já corrigidas, e depois `0x08` com `ctrl=2`, `effect=0x01`, `bright=…`, `save=…`.
-**[não verificado nesta máquina]** — será testado na etapa de RGB.
+### Sequências do vendor (`LM_ITE_RGB.Set_ITE_Effect_Type_FwMode`, tipos 2/3 = 4 zonas)
+
+| Caso | Pacotes |
+|---|---|
+| Uma cor (estático ou efeito) | `0x14` slot 1 → `0x08 [2, effect, speed, bright, color=1, dir, save]` |
+| Paleta (efeito com várias cores) | `0x14` slots 1..N → `0x08 [..., color=8, ...]` |
+| Sem cor (arco-íris do firmware) | `0x08 [..., color=0, ...]` |
+| Cor de uma zona ao vivo | só `0x14` no slot `zona` (1..4) |
+
+O AvellCC faz "uma cor por zona" assim: `0x14` slot 1 → `0x08 Static color=1` → `0x14` slots 1..4.
+
+### Confirmado no hardware (2026‑11‑26, sem administrador)
+
+- Abrir `048D:CE00` MI_01 (`0xFF12`) com `GENERIC_READ|WRITE` funciona como usuário comum.
+- **Firmware** (`0x80`): `11 03 00 00`, ou seja, `Ver_High = 0x11` e `Ver_Low = 0x03`.
+- **Estado** (`0x88`): a resposta **espelha o comando `0x08`** a partir do byte 2: `ctrl effect speed bright color dir save`.
+  - Estado de fábrica/vendor encontrado: `02 03 01 24 08 01` = Apply, **Wave**, speed 1 (o mais rápido), brilho 36 (nível 3), paleta cíclica, direita→esquerda.
+  - O byte de `save` volta 0 mesmo quando o efeito foi gravado com save.
+- `kb zones FF0000 00FF00 0000FF FFFFFF` foi aceito: o `0x88` passou a reportar `Static, brilho 50, color=1`.
+  A ordem física das zonas e a fidelidade das cores dependem de confirmação visual.
+
+Para voltar ao efeito do vendor (os bytes exatos lidos acima):
+```powershell
+avellcc kb raw 00 08 02 03 01 24 08 01 01
+```
+A paleta (slots 1..7) usada pela Wave original não pode ser lida. Os testes sobrescreveram os slots 1..4.

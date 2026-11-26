@@ -4,8 +4,8 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- O EC via WMI exige administrador. -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <!-- O teclado (HID) não exige admin; os comandos de EC (WMI) exigem e falham com mensagem clara. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>
