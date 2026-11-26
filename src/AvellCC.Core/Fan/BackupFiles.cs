@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace AvellCC.Core.Fan;
 
-/// <summary>Escrita de backups: originais são criados uma única vez (CreateNew) e marcados como somente leitura.</summary>
+/// <summary>Backup writing: originals are created only once (CreateNew) and marked read-only.</summary>
 internal static class BackupFiles
 {
     public static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -10,7 +10,7 @@ internal static class BackupFiles
     public static string DefaultDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "AvellCC", "backup");
 
-    /// <summary>Cria o arquivo se não existir. Retorna false se já existia (nunca sobrescreve).</summary>
+    /// <summary>Creates the file if it does not exist. Returns false if it already existed (never overwrites).</summary>
     public static bool TryCreateReadOnly<T>(string path, T value)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -38,5 +38,5 @@ internal static class BackupFiles
     }
 
     public static T Load<T>(string path) =>
-        JsonSerializer.Deserialize<T>(File.ReadAllText(path)) ?? throw new InvalidDataException($"Backup vazio: {path}");
+        JsonSerializer.Deserialize<T>(File.ReadAllText(path)) ?? throw new InvalidDataException($"Empty backup: {path}");
 }

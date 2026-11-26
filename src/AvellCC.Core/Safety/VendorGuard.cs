@@ -3,25 +3,25 @@ using System.Diagnostics;
 namespace AvellCC.Core.Safety;
 
 /// <summary>
-/// Regra 1 (docs/ARCHITECTURE.md): só um controlador por vez.
-/// Se o Avell Custom Control estiver rodando, escritas no hardware são recusadas.
+/// Rule 1 (docs/ARCHITECTURE.md): one controller at a time.
+/// If Avell Custom Control is running, hardware writes are refused.
 /// </summary>
 public static class VendorGuard
 {
     public static readonly string[] VendorProcessNames = ["GCUService", "GCUBridge", "ControlCenterU", "OSDTpDetect"];
 
     public const string HowToStop =
-        "Pare o Avell Custom Control (PowerShell como admin):\n" +
+        "Stop Avell Custom Control (PowerShell as administrator):\n" +
         "  Get-Process ControlCenterU, OSDTpDetect, EnableTray -ErrorAction SilentlyContinue | Stop-Process -Force\n" +
         "  Stop-Service GCUBridge -Force; Set-Service GCUBridge -StartupType Disabled\n" +
-        "Detalhes: docs/ARCHITECTURE.md (Regra 1).";
+        "Details: docs/ARCHITECTURE.md (Rule 1).";
 
     public static string[] RunningVendorProcesses() =>
         VendorProcessNames
             .Where(name => Process.GetProcessesByName(name).Length > 0)
             .ToArray();
 
-    /// <summary>Lança se algum processo do vendor estiver ativo. Chamar antes de QUALQUER escrita.</summary>
+    /// <summary>Throws if any vendor process is active. Call before ANY write.</summary>
     public static void EnsureVendorStopped()
     {
         var running = RunningVendorProcesses();
@@ -31,7 +31,7 @@ public static class VendorGuard
 }
 
 public sealed class VendorRunningException(string[] processes)
-    : InvalidOperationException($"Avell Custom Control em execução ({string.Join(", ", processes)}). Escrita recusada.\n{VendorGuard.HowToStop}")
+    : InvalidOperationException($"Another controller is running ({string.Join(", ", processes)}). Write refused.\n{VendorGuard.HowToStop}")
 {
     public string[] Processes { get; } = processes;
 }

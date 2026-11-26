@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace AvellCC.Core.Fan;
 
-/// <summary>Valores de um conjunto de registradores do EC, com hash, para backup e restauração exata.</summary>
+/// <summary>Values of a set of EC registers, with a hash, for backup and exact restore.</summary>
 public sealed record EcRegisterSnapshot
 {
     public const string SchemaId = "avellcc.ec-registers.v1";
@@ -37,11 +37,11 @@ public sealed record EcRegisterSnapshot
 
     public void Validate()
     {
-        if (Schema != SchemaId) throw new InvalidDataException($"Esquema desconhecido: {Schema}");
-        if (Registers.Count == 0) throw new InvalidDataException("Backup sem registradores.");
+        if (Schema != SchemaId) throw new InvalidDataException($"Unknown schema: {Schema}");
+        if (Registers.Count == 0) throw new InvalidDataException("Backup has no registers.");
         if (!string.Equals(Hash(Registers), Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("SHA-256 não confere: backup corrompido.");
-        _ = Values(); // formato dos endereços/valores
+            throw new InvalidDataException("SHA-256 mismatch: corrupt backup.");
+        _ = Values(); // address/value format
     }
 
     private static string Hash(SortedDictionary<string, string> registers) =>
@@ -49,9 +49,9 @@ public sealed record EcRegisterSnapshot
 }
 
 /// <summary>
-/// Backups de um grupo de registradores. &lt;name&gt;.original.json é criado UMA vez e nunca é sobrescrito.
-/// Cada mecanismo tem o seu grupo ("ec-office", "ec-direct"), para que um conjunto novo de registradores
-/// tenha o próprio original lido antes da primeira escrita.
+/// Backups of a register group. &lt;name&gt;.original.json is created ONCE and never overwritten.
+/// Each mechanism has its own group ("ec-office", "ec-direct"), so a new set of registers gets
+/// its own original, read before the first write.
 /// </summary>
 public sealed class EcRegisterBackupStore(string? directory = null, string name = "ec-registers")
 {

@@ -4,43 +4,46 @@ using AvellCC.Core.Safety;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Leitura, backup, aplicação de curva e restauração da tabela de ventoinha.
-/// Toda escrita: (1) exige o vendor parado, (2) garante o backup original, (3) salva um snapshot,
-/// (4) grava na ordem segura, (5) relê e compara; se divergir, volta ao snapshot.
+/// Read, back up, apply and restore the EC's 16-level fan table (0xF00–0xF5F).
+/// NOTE: this EC ignores the table (docs/HARDWARE.md, tests 1–3); the service uses <see cref="DirectFanService"/>.
+/// This class is kept for the original-state backup/restore and for testing other Uniwill models.
+///
+/// Every write: (1) requires the vendor app stopped, (2) ensures the original backup, (3) saves a snapshot,
+/// (4) writes in the safe order, (5) reads back and compares; on mismatch, restores the snapshot.
 /// </summary>
 public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Func<MachineInfo> machine, Func<string[]> vendorRunning)
 {
-    /// <summary>0x7A5 bit 3: o EC passa a seguir a tabela 0xF00 ("UserHiModeToFantable" no vendor).</summary>
+    /// <summary>0x7A5 bit 3: makes the EC follow the 0xF00 table ("UserHiModeToFantable" in the vendor app).</summary>
     public const byte UserTableBit = 0x08;
-    /// <summary>0x7A5 bit 2: modo silencioso do vendor. Desligado ao aplicar curva própria (como no modo Standard).</summary>
+    /// <summary>0x7A5 bit 2: vendor quiet mode. Cleared when applying our own curve (as the vendor's Standard mode does).</summary>
     public const byte QuietBit = 0x04;
-    /// <summary>0x751 no modo Standard do vendor (MyFanManager_Intel.SetFanMode(2)).</summary>
+    /// <summary>0x751 in the vendor's Standard mode (MyFanManager_Intel.SetFanMode(2)).</summary>
     public const byte FanControlStandard = 0xA0;
-    /// <summary>0x751 no modo Performance/Benchmark do vendor (bit 6 = FanBoost).</summary>
+    /// <summary>0x751 in the vendor's Performance/Benchmark mode (bit 6 = Fan Boost).</summary>
     public const byte FanControlPerformance = 0x40;
 
     public enum WriteOrder
     {
-        /// <summary>Tabela, depois modos: liga a tabela do usuário só depois de ela estar gravada e conferida.</summary>
+        /// <summary>Table, then modes: enable the user table only after it is written and verified.</summary>
         TableFirst,
-        /// <summary>Modos, depois tabela: desliga a tabela do usuário antes de mexer nela.</summary>
+        /// <summary>Modes, then table: disable the user table before touching it.</summary>
         ModesFirst,
     }
 
-    /// <summary>Progresso das escritas (endereços processados, total). Útil porque cada acesso WMI leva ~100 ms.</summary>
+    /// <summary>Write progress (addresses done, total). Useful because each WMI access takes ~100 ms.</summary>
     public event Action<int, int>? Progress;
 
-    /// <summary>Lê a tabela duas vezes; só aceita se as duas leituras forem iguais.</summary>
+    /// <summary>Reads the table twice; only accepts it if both reads match.</summary>
     public FanTableSnapshot ReadStable(string createdBy = "AvellCC")
     {
         var first = ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength);
         var second = ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength);
         if (!first.AsSpan().SequenceEqual(second))
-            throw new InvalidOperationException("A tabela mudou entre duas leituras: outro processo está escrevendo no EC.");
+            throw new InvalidOperationException("The table changed between two reads: another process is writing to the EC.");
         return Snapshot(first, createdBy);
     }
 
-    /// <summary>Cria o backup original se ainda não existir. Seguro para chamar sempre (só lê o EC).</summary>
+    /// <summary>Creates the original backup if it does not exist yet. Always safe to call (only reads the EC).</summary>
     public (FanTableSnapshot Original, bool CreatedNow) EnsureOriginalBackup()
     {
         if (store.HasOriginal) return (store.LoadOriginal(), false);
@@ -50,8 +53,8 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
     }
 
     /// <summary>
-    /// Volta ao estado do backup original. Os modos são gravados PRIMEIRO: com o original deste notebook
-    /// (tabela zerada, 0x7A5 = 0x00), isso desliga a tabela do usuário antes de ela virar zeros.
+    /// Returns to the original backup. Modes are written FIRST: with this laptop's original
+    /// (zeroed table, 0x7A5 = 0x00) that disables the user table before it becomes all zeros.
     /// </summary>
     public void RestoreOriginal()
     {
@@ -60,8 +63,8 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
     }
 
     /// <summary>
-    /// Aplica uma curva: grava e confere a tabela e SÓ DEPOIS liga a tabela do usuário
-    /// (0x7A5: bit 3 ligado, bit 2 desligado; 0x751 conforme <see cref="FanCurve.EcMode"/>).
+    /// Applies a curve: writes and verifies the table and ONLY THEN enables the user table
+    /// (0x7A5: bit 3 set, bit 2 cleared; 0x751 per <see cref="FanCurve.EcMode"/>).
     /// </summary>
     public byte[] ApplyCurve(FanCurve curve)
     {
@@ -80,20 +83,20 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
         return table;
     }
 
-    /// <summary>true se o EC está com a tabela do usuário ligada.</summary>
+    /// <summary>true if the EC has the user table enabled.</summary>
     public bool IsUserTableActive() => (ec.Read(EcAddresses.ApOemByte3) & UserTableBit) != 0;
 
-    /// <summary>Caminho único de escrita (internal: entradas públicas são ApplyCurve e RestoreOriginal).</summary>
+    /// <summary>Single write path (internal: the public entry points are ApplyCurve and RestoreOriginal).</summary>
     internal void Apply(IReadOnlyDictionary<ushort, byte> modes, byte[] table, WriteOrder order, string reason)
     {
-        if (table.Length != EcAddresses.FanTableLength) throw new ArgumentException("Tamanho inválido.", nameof(table));
+        if (table.Length != EcAddresses.FanTableLength) throw new ArgumentException("Invalid size.", nameof(table));
         if (modes.Keys.Any(a => !EcAddresses.FanModeRegisters.Contains(a)))
-            throw new ArgumentException("Registrador de modo fora da lista permitida.", nameof(modes));
+            throw new ArgumentException("Mode register outside the allow list.", nameof(modes));
 
-        var running = vendorRunning();                 // Regra 1: só um controlador por vez
+        var running = vendorRunning();                 // Rule 1: one controller at a time
         if (running.Length > 0) throw new VendorRunningException(running);
 
-        EnsureOriginalBackup();                        // Regra 2: nunca escrever sem o original salvo
+        EnsureOriginalBackup();                        // Rule 2: never write without the original saved
         var before = Snapshot(ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength), $"AvellCC/before-{reason}");
         store.SaveSnapshot(before, $"before-{reason}");
 
@@ -103,10 +106,10 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
         }
         catch (Exception ex)
         {
-            // Volta ao estado anterior desligando a tabela do usuário primeiro.
+            // Back to the previous state, disabling the user table first.
             var current = Snapshot(ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength), "AvellCC/rollback");
             Write(before.FanModeRegisterValues(), before.Raw, current, WriteOrder.ModesFirst);
-            throw new InvalidOperationException($"Falha ao gravar ({ex.Message}). O estado anterior foi restaurado.", ex);
+            throw new InvalidOperationException($"Write failed ({ex.Message}). The previous state was restored.", ex);
         }
     }
 
@@ -122,7 +125,7 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
             foreach (var (address, value) in modes)
             {
                 if (currentModes[address] != value) ec.Write(address, value);
-                if (ec.Read(address) != value) throw new InvalidOperationException($"Read-back divergente em 0x{address:X3}.");
+                if (ec.Read(address) != value) throw new InvalidOperationException($"Read-back mismatch at 0x{address:X3}.");
                 Progress?.Invoke(++done, total);
             }
         }
@@ -135,7 +138,7 @@ public sealed class FanTableService(IEcAccess ec, FanTableBackupStore store, Fun
                 Progress?.Invoke(++done, total);
             }
             var after = ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength);
-            if (!after.AsSpan().SequenceEqual(table)) throw new InvalidOperationException("Read-back divergente na tabela.");
+            if (!after.AsSpan().SequenceEqual(table)) throw new InvalidOperationException("Read-back mismatch in the table.");
         }
 
         if (order == WriteOrder.TableFirst) { WriteTable(); WriteModes(); }

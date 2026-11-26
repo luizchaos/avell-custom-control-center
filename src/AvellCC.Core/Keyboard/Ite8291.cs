@@ -1,10 +1,10 @@
 namespace AvellCC.Core.Keyboard;
 
 /// <summary>
-/// Protocolo do controlador ITE 8291 (048D:CE00, interface MI_01, usage page 0xFF12 = 4 zonas).
-/// Feature report de 9 bytes: [0] = report ID 0x00, [1] = comando, [2..8] = argumentos.
-/// Fonte: LightingModel.LM_ITE_RGB / ITE_SPEC do GCUService.exe. Ver docs/HARDWARE.md §3.
-/// Esta classe só monta pacotes (pura, testável). O envio fica em um dispositivo HID separado.
+/// ITE 8291 controller protocol (048D:CE00, interface MI_01, usage page 0xFF12 = 4 zones).
+/// 9-byte feature report: [0] = report ID 0x00, [1] = command, [2..8] = arguments.
+/// Source: LightingModel.LM_ITE_RGB / ITE_SPEC in the vendor's GCUService.exe. See docs/HARDWARE.md §3.
+/// This class only builds packets (pure, testable). Sending is done by a separate HID device.
 /// </summary>
 public static class Ite8291
 {
@@ -20,7 +20,7 @@ public static class Ite8291
     public const byte CmdGetFirmware = 0x80;
     public const byte CmdGetEffect = 0x88;
 
-    /// <summary>Byte "ctrl" do comando 0x08.</summary>
+    /// <summary>"ctrl" byte of command 0x08.</summary>
     public enum Control : byte { Off = 1, Apply = 2, Welcome = 3, Night = 4 }
 
     public enum Effect : byte
@@ -33,10 +33,10 @@ public static class Ite8291
 
     public enum Direction : byte { LeftToRight = 0, RightToLeft = 1, BottomToTop = 2, TopToBottom = 3, OnKeyPress = 4 }
 
-    /// <summary>Nível de UI 0..4 → valor do firmware (máx. 0x32).</summary>
+    /// <summary>UI level 0..4 → firmware value (max 0x32).</summary>
     public static readonly byte[] BrightnessSteps = [0, 8, 22, 36, 50];
 
-    /// <summary>Nível de UI 0..4 (lento → rápido) → valor do firmware.</summary>
+    /// <summary>UI level 0..4 (slow → fast) → firmware value.</summary>
     public static readonly byte[] SpeedSteps = [10, 7, 5, 3, 1];
 
     public static byte[] SetEffect(Control control, Effect effect, int speedLevel, int brightnessLevel, byte color, Direction direction, bool save) =>
@@ -47,7 +47,7 @@ public static class Ite8291
 
     public static byte[] SetBrightness(int brightnessLevel) => Packet(CmdSetBrightness, 0x02, BrightnessSteps[Level(brightnessLevel)]);
 
-    /// <summary>Cor de uma zona (1..4). Aplica a correção de cor do vendor.</summary>
+    /// <summary>Color of a zone (1..4), with the vendor's color correction applied.</summary>
     public static byte[] SetZoneColor(int zone, Rgb color, byte projectId)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(zone, 1);
@@ -55,7 +55,7 @@ public static class Ite8291
         return SetSlotColor(zone, CorrectColor4Zone(projectId, color));
     }
 
-    /// <summary>Cor crua de um slot (1..7), sem correção. Slots 1..4 = zonas; 1..N = paleta dos efeitos.</summary>
+    /// <summary>Raw color of a slot (1..7), uncorrected. Slots 1..4 = zones; 1..N = effect palette.</summary>
     public static byte[] SetSlotColor(int slot, Rgb color)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(slot, 1);
@@ -69,8 +69,8 @@ public static class Ite8291
     public static byte[] QueryEffect() => Packet(CmdGetEffect);
 
     /// <summary>
-    /// WKDColor.cheatRGB_4Zone: os LEDs têm verde e azul mais fortes. O vendor atenua G e B
-    /// e tem casos especiais para laranja e amarelo.
+    /// WKDColor.cheatRGB_4Zone: the green and blue LEDs are stronger, so the vendor attenuates G and B,
+    /// with special cases for orange and yellow. Confirmed visually on project ID 0x0F (white looks white).
     /// </summary>
     public static Rgb CorrectColor4Zone(byte projectId, Rgb c)
     {
@@ -89,7 +89,7 @@ public static class Ite8291
 
     private static byte[] Packet(byte command, params byte[] args)
     {
-        if (args.Length > FeatureReportLength - 2) throw new ArgumentException("Argumentos demais.", nameof(args));
+        if (args.Length > FeatureReportLength - 2) throw new ArgumentException("Too many arguments.", nameof(args));
         var packet = new byte[FeatureReportLength];
         packet[1] = command;
         args.CopyTo(packet, 2);

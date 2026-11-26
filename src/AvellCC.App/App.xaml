@@ -13,8 +13,8 @@
         <SolidColorBrush x:Key="Warn" Color="#F59E0B"/>
         <SolidColorBrush x:Key="Bad" Color="#EF4444"/>
 
-        <!-- Sem estilo implícito de TextBlock aqui: no nível da Application ele vaza para dentro dos templates
-             (cabeçalho das abas, ComboBox) e deixa texto claro sobre fundo claro. A cor vem por herança da janela. -->
+        <!-- No implicit TextBlock style here: at Application level it leaks into control templates
+             (tab headers, ComboBox) and puts light text on light backgrounds. Color is inherited from the window. -->
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="#16181D"/>
         </Style>

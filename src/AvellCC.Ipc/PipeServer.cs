@@ -8,8 +8,8 @@ using System.Text.Json;
 namespace AvellCC.Ipc;
 
 /// <summary>
-/// Servidor do pipe. Cada conexão pode mandar várias requisições (uma por linha).
-/// ACL: SYSTEM e Administradores (total), usuários interativos e o próprio usuário do processo (leitura/escrita).
+/// Pipe server. Each connection may send several requests (one per line).
+/// ACL: SYSTEM and Administrators (full), interactive users and the process's own user (read/write).
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class PipeServer(string pipeName, Func<string, JsonElement?, CancellationToken, Task<object?>> handler, Action<Exception>? onError = null)
@@ -68,7 +68,7 @@ public sealed class PipeServer(string pipeName, Func<string, JsonElement?, Cance
             }
             catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
             {
-                // cliente desconectou
+                // client disconnected
             }
         }
     }
@@ -79,11 +79,11 @@ public sealed class PipeServer(string pipeName, Func<string, JsonElement?, Cance
         try
         {
             request = JsonSerializer.Deserialize<Request>(line, Protocol.Json);
-            if (request is null) return new Response(0, false, Error: "Requisição vazia.");
+            if (request is null) return new Response(0, false, Error: "Empty request.");
         }
         catch (JsonException ex)
         {
-            return new Response(0, false, Error: $"JSON inválido: {ex.Message}");
+            return new Response(0, false, Error: $"Invalid JSON: {ex.Message}");
         }
 
         try

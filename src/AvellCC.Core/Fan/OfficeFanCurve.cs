@@ -5,19 +5,19 @@ using AvellCC.Core.Ec;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Curva do "Office Mode Advanced": 5 velocidades (T1..T5, em %) nas temperaturas fixas do firmware.
-/// É o mecanismo que este EC obedece (docs/HARDWARE.md). O EC recebe % × 2 em 0x743–0x747.
+/// "Office Mode Advanced" curve: 5 speeds (T1..T5, in %) at the firmware's fixed temperatures; the EC receives % × 2
+/// at 0x743–0x747. This EC ignores it (docs/HARDWARE.md); kept for the experiments and for other models.
 /// </summary>
 public sealed record OfficeFanCurve
 {
     public const int Levels = EcAddresses.OfficeAdvPwmCount;
-    /// <summary>T5 nunca abaixo do máximo do preset da Avell (60 %): a curva não pode resfriar menos que o vendor no topo.</summary>
+    /// <summary>T5 never below the vendor preset's top (60 %): the curve must not cool less than the vendor at the top.</summary>
     public const int MinTopDuty = 60;
 
     [JsonPropertyName("name")] public string Name { get; init; } = "office";
     [JsonPropertyName("duties")] public int[] Duties { get; init; } = [];
 
-    /// <summary>Liga 0x727 bit 6 ("custom profile mode", tuxedo-drivers) junto com o modo Office.</summary>
+    /// <summary>Also sets 0x727 bit 6 ("custom profile mode", tuxedo-drivers) together with Office mode.</summary>
     [JsonPropertyName("customProfile")] public bool CustomProfile { get; init; }
 
     private static readonly JsonSerializerOptions Json = new() { ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
@@ -25,7 +25,7 @@ public sealed record OfficeFanCurve
     public static OfficeFanCurve Load(string path)
     {
         var curve = JsonSerializer.Deserialize<OfficeFanCurve>(File.ReadAllText(path), Json)
-                    ?? throw new InvalidDataException("Curva vazia.");
+                    ?? throw new InvalidDataException("Empty curve.");
         curve.Validate();
         return curve;
     }
@@ -35,21 +35,21 @@ public sealed record OfficeFanCurve
         var errors = new List<string>();
         if (Duties.Length != Levels)
         {
-            errors.Add($"duties precisa ter exatamente {Levels} valores (T1..T5), tem {Duties.Length}.");
+            errors.Add($"duties must have exactly {Levels} values (T1..T5), has {Duties.Length}.");
         }
         else
         {
             for (var i = 0; i < Levels; i++)
             {
-                if (Duties[i] is < 0 or > 100) errors.Add($"T{i + 1}: {Duties[i]}% fora de 0–100.");
-                if (i > 0 && Duties[i] < Duties[i - 1]) errors.Add($"T{i + 1}: a velocidade não pode diminuir de um nível para o seguinte.");
+                if (Duties[i] is < 0 or > 100) errors.Add($"T{i + 1}: {Duties[i]}% is outside 0–100.");
+                if (i > 0 && Duties[i] < Duties[i - 1]) errors.Add($"T{i + 1}: speed must not decrease from one level to the next.");
             }
-            if (Duties[^1] < MinTopDuty) errors.Add($"T5 precisa ter pelo menos {MinTopDuty}% (tem {Duties[^1]}%).");
+            if (Duties[^1] < MinTopDuty) errors.Add($"T5 must be at least {MinTopDuty}% (is {Duties[^1]}%).");
         }
         if (errors.Count > 0) throw new FanCurveException(errors);
     }
 
-    /// <summary>Bytes para 0x743–0x747 (% × 2), como em MyFanManager_Intel.SetFan_Optimized_PWM.</summary>
+    /// <summary>Bytes for 0x743–0x747 (% × 2), as in MyFanManager_Intel.SetFan_Optimized_PWM.</summary>
     public byte[] ToRaw()
     {
         Validate();

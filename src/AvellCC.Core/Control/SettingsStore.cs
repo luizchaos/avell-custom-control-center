@@ -5,24 +5,24 @@ using AvellCC.Core.Keyboard;
 
 namespace AvellCC.Core.Control;
 
-/// <summary>Estado desejado, persistido pelo serviço em %ProgramData%\AvellCC\settings.json.</summary>
+/// <summary>Desired state, persisted by the service in %ProgramData%\AvellCC\settings.json.</summary>
 public sealed record AppSettings
 {
-    /// <summary>"firmware" (curva interna do EC) ou "curve" (curva do AvellCC, controle direto).</summary>
+    /// <summary>"firmware" (EC's internal curve) or "curve" (AvellCC curve, direct control).</summary>
     [JsonPropertyName("fanMode")] public string FanMode { get; init; } = "firmware";
     [JsonPropertyName("curveName")] public string CurveName { get; init; } = CurvePresets.Balanced.Name;
-    /// <summary>null = o serviço não mexe no teclado.</summary>
+    /// <summary>null = the service leaves the keyboard alone.</summary>
     [JsonPropertyName("keyboard")] public KeyboardSettings? Keyboard { get; init; }
 
     public void Validate()
     {
-        if (FanMode is not ("firmware" or "curve")) throw new ArgumentException($"fanMode inválido: {FanMode}");
+        if (FanMode is not ("firmware" or "curve")) throw new ArgumentException($"Invalid fanMode: {FanMode}");
         SettingsStore.ValidateName(CurveName);
         Keyboard?.Validate();
     }
 }
 
-/// <summary>Arquivos de configuração e curvas. Gravação atômica (arquivo temporário + troca).</summary>
+/// <summary>Settings and curve files. Atomic writes (temporary file + replace).</summary>
 public sealed class SettingsStore(string? root = null)
 {
     private static readonly JsonSerializerOptions Json = new()
@@ -48,7 +48,7 @@ public sealed class SettingsStore(string? root = null)
         WriteAtomic(SettingsPath, JsonSerializer.Serialize(settings, Json));
     }
 
-    /// <summary>Grava as curvas de fábrica que ainda não existirem (nunca sobrescreve uma curva editada).</summary>
+    /// <summary>Writes the built-in curves that do not exist yet (never overwrites an edited curve).</summary>
     public void EnsurePresets()
     {
         Directory.CreateDirectory(CurvesDirectory);
@@ -66,7 +66,7 @@ public sealed class SettingsStore(string? root = null)
         foreach (var file in Directory.GetFiles(CurvesDirectory, "*.json").Order(StringComparer.OrdinalIgnoreCase))
         {
             try { curves.Add(FanCurve.Load(file)); }
-            catch (Exception ex) when (ex is ArgumentException or JsonException or InvalidDataException) { /* curva inválida: ignorada na lista */ }
+            catch (Exception ex) when (ex is ArgumentException or JsonException or InvalidDataException) { /* invalid curve: left out of the list */ }
         }
         return curves;
     }
@@ -75,7 +75,7 @@ public sealed class SettingsStore(string? root = null)
     {
         ValidateName(name);
         var path = CurvePath(name);
-        if (!File.Exists(path)) throw new FileNotFoundException($"Curva '{name}' não encontrada.", path);
+        if (!File.Exists(path)) throw new FileNotFoundException($"Curve '{name}' not found.", path);
         return FanCurve.Load(path);
     }
 
@@ -90,7 +90,7 @@ public sealed class SettingsStore(string? root = null)
     public static void ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 40 || !name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
-            throw new ArgumentException($"Nome de curva inválido: '{name}' (use letras, números, - e _, até 40).");
+            throw new ArgumentException($"Invalid curve name: '{name}' (use letters, digits, - and _, up to 40).");
     }
 
     private string CurvePath(string name) => Path.Combine(CurvesDirectory, $"{name}.json");

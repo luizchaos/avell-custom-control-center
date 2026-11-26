@@ -1,9 +1,9 @@
 using AvellCC.Service;
 using Microsoft.Extensions.Hosting.WindowsServices;
 
-// Serviço Windows "AvellCC" (LocalSystem): único dono do EC e do teclado.
-//   AvellCC.Service.exe              → como serviço (instalado por tools/install.ps1)
-//   AvellCC.Service.exe --simulate   → console, EC simulado, pipe "AvellCC.Control.sim" (desenvolvimento da UI, sem admin)
+// Windows service "AvellCC" (LocalSystem): single owner of the EC and keyboard.
+//   AvellCC.Service.exe              → as a service (installed by tools/install.ps1)
+//   AvellCC.Service.exe --simulate   → console, simulated EC, pipe "AvellCC.Control.sim" (UI development, no admin)
 
 var simulate = args.Contains("--simulate");
 var builder = Host.CreateApplicationBuilder(args);

@@ -1,6 +1,6 @@
 namespace AvellCC.Core.Ec;
 
-/// <summary>Acesso byte a byte à EC RAM. Implementações devem ser thread-safe.</summary>
+/// <summary>Byte-level access to EC RAM. Implementations must be thread-safe.</summary>
 public interface IEcAccess
 {
     byte Read(ushort address);

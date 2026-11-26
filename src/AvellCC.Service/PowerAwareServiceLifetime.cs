@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace AvellCC.Service;
 
 /// <summary>
-/// Ciclo de vida do serviço Windows com eventos de energia: ao suspender, devolve as ventoinhas ao firmware;
-/// ao retomar, reassume (como o tuxedo-drivers faz no suspend/resume).
+/// Windows service lifetime with power events: on suspend, hands the fans back to the firmware;
+/// on resume, takes control again (as tuxedo-drivers does on suspend/resume).
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class PowerAwareServiceLifetime : WindowsServiceLifetime

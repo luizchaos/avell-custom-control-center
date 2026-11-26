@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using AvellCC.App.Localization;
 using AvellCC.Core.Control;
 using AvellCC.Core.Fan;
 using AvellCC.Core.Keyboard;
@@ -16,6 +17,7 @@ using Forms = System.Windows.Forms;
 
 namespace AvellCC.App;
 
+/// <summary>Editable row of the curve editor grids.</summary>
 public sealed class PointRow
 {
     public int Temp { get; set; }
@@ -38,6 +40,7 @@ public partial class MainWindow : Window
     private List<FanCurve> _curves = [];
     private AppSettings? _settings;
     private ControlStatus? _status;
+    private ServiceInfo? _info;
     private bool _reallyClose;
     private bool _polling;
     private bool _loadingUi;
@@ -50,7 +53,6 @@ public partial class MainWindow : Window
         _simulate = simulate;
         InitializeComponent();
         Icon = ToImageSource(AppIcon.Create(LoopState.Curve));
-        if (simulate) Title += " — SIMULAÇÃO";
 
         CpuGrid.ItemsSource = _cpu;
         GpuGrid.ItemsSource = _gpu;
@@ -61,7 +63,13 @@ public partial class MainWindow : Window
         KbModeCombo.SelectedIndex = 0;
         KbDirectionCombo.SelectedIndex = 0;
         StartupCheck.IsChecked = StartupRegistration.IsEnabled;
-        UpdateKbButtons();
+
+        _loadingUi = true;
+        LanguageCombo.ItemsSource = Loc.Available();
+        LanguageCombo.SelectedItem = Loc.Available().FirstOrDefault(l => l.Code == Loc.Instance.Language);
+        _loadingUi = false;
+        Loc.Instance.PropertyChanged += (_, _) => RefreshTexts();
+        RefreshTexts();
 
         _timer.Tick += async (_, _) => await PollAsync();
         Loaded += async (_, _) => await InitAsync();
@@ -69,13 +77,13 @@ public partial class MainWindow : Window
         _ = PollAsync();
     }
 
-    // ------------------------------------------------------------------ ciclo de vida
+    // ------------------------------------------------------------------ lifecycle
 
     protected override void OnClosing(CancelEventArgs e)
     {
         if (!_reallyClose)
         {
-            e.Cancel = true;   // fechar = ir para a bandeja
+            e.Cancel = true;   // closing the window = go to the tray
             Hide();
         }
         base.OnClosing(e);
@@ -92,17 +100,31 @@ public partial class MainWindow : Window
     {
         try
         {
-            var info = await _client.InfoAsync();
-            MachineText.Text = $"{info.Machine} · serviço {info.Version}{(info.Simulated ? " · SIMULAÇÃO" : "")}";
-            AboutText.Text = $"AvellCC — controle de RGB e ventoinhas para Avell (plataforma Uniwill).\n" +
-                             $"Serviço {info.Version}, protocolo {info.ProtocolVersion}. {info.Machine}.\n" +
-                             "Documentação: docs/ARCHITECTURE.md e docs/HARDWARE.md no repositório.";
+            _info = await _client.InfoAsync();
+            RefreshTexts();
             await ReloadSettingsAsync();
         }
         catch (Exception ex)
         {
             MachineText.Text = ex.Message;
         }
+    }
+
+    /// <summary>Texts set from code (not bound in XAML). Called on startup, on language change and when data arrives.</summary>
+    private void RefreshTexts()
+    {
+        Title = _simulate ? $"AvellCC — {Loc.T("app.simulation")}" : "AvellCC";
+        if (_info is { } info)
+        {
+            MachineText.Text = Loc.T("header.service", info.Machine, info.Version) + (info.Simulated ? $" · {Loc.T("app.simulation")}" : "");
+            AboutText.Text = Loc.T("settings.aboutText", info.Version, info.ProtocolVersion, info.Machine);
+        }
+        var buttons = new[] { Zone1Button, Zone2Button, Zone3Button, Zone4Button };
+        for (var i = 0; i < buttons.Length; i++) buttons[i].ToolTip = Loc.T("kb.zone", i + 1);
+        UpdateModeHelp();
+        UpdateKbButtons();
+        if (_status is not null) ShowStatus(_status);
+        else if (Banner.Visibility == Visibility.Visible) ShowNoService();
     }
 
     public async Task ReloadSettingsAsync()
@@ -119,6 +141,7 @@ public partial class MainWindow : Window
             CurveCombo.SelectedItem = _curves.FirstOrDefault(c => c.Name == _settings.CurveName) ?? _curves.FirstOrDefault();
             LoadEditor(CurveCombo.SelectedItem as FanCurve);
             if (_settings.Keyboard is { } kb) LoadKeyboard(kb);
+            UpdateModeHelp();
         }
         finally
         {
@@ -142,17 +165,20 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is ServiceUnavailableException or ServiceException)
         {
             _status = null;
-            ShowBanner(_simulate
-                ? "Serviço de simulação não está rodando. Inicie: AvellCC.Service.exe --simulate"
-                : "Serviço AvellCC indisponível. Instale com tools\\install.ps1 (admin) ou verifique em services.msc.", "Bad");
-            StatusText.Text = "sem serviço";
-            StatusDot.Fill = (Brush)FindResource("Bad");
+            ShowNoService();
             StatusUpdated?.Invoke(null);
         }
         finally
         {
             _polling = false;
         }
+    }
+
+    private void ShowNoService()
+    {
+        ShowBanner(Loc.T(_simulate ? "banner.noServiceSim" : "banner.noService"), "Bad");
+        StatusText.Text = Loc.T("state.noService");
+        StatusDot.Fill = (Brush)FindResource("Bad");
     }
 
     private void ShowStatus(ControlStatus s)
@@ -165,8 +191,8 @@ public partial class MainWindow : Window
         Fan2Duty.Text = $"{s.Fan2Duty:0.#} %";
         ModeText.Text = s.State switch
         {
-            LoopState.Curve or LoopState.Emergency => $"Curva: {s.CurveName}",
-            LoopState.Firmware => "Firmware (curva interna do notebook)",
+            LoopState.Curve or LoopState.Emergency => Loc.T("dash.mode.curve", s.CurveName),
+            LoopState.Firmware => Loc.T("dash.mode.firmware"),
             _ => StateText(s.State),
         };
         MessageText.Text = s.Message ?? "";
@@ -181,10 +207,10 @@ public partial class MainWindow : Window
 
         switch (s.State)
         {
-            case LoopState.Emergency: ShowBanner($"EMERGÊNCIA: {s.Message}. Ventoinhas a 100 %.", "Bad"); break;
-            case LoopState.BlockedByVendor: ShowBanner($"{s.Message} Pare o serviço GCUBridge (docs/ARCHITECTURE.md, Regra 1). Ventoinhas no firmware.", "Warn"); break;
-            case LoopState.Error: ShowBanner($"Erro no controle: {s.Message}. Ventoinhas devolvidas ao firmware.", "Bad"); break;
-            case LoopState.Suspended: ShowBanner("Retomando da suspensão…", "Warn"); break;
+            case LoopState.Emergency: ShowBanner(Loc.T("banner.emergency", s.Message), "Bad"); break;
+            case LoopState.BlockedByVendor: ShowBanner(Loc.T("banner.vendor", s.Message), "Warn"); break;
+            case LoopState.Error: ShowBanner(Loc.T("banner.error", s.Message), "Bad"); break;
+            case LoopState.Suspended: ShowBanner(Loc.T("banner.suspended"), "Warn"); break;
             default: Banner.Visibility = Visibility.Collapsed; break;
         }
         DrawChart();
@@ -197,18 +223,20 @@ public partial class MainWindow : Window
         Banner.Visibility = Visibility.Visible;
     }
 
-    public static string StateText(LoopState state) => state switch
-    {
-        LoopState.Firmware => "Firmware",
-        LoopState.Curve => "Curva ativa",
-        LoopState.Emergency => "Emergência",
-        LoopState.BlockedByVendor => "Bloqueado (Avell Custom Control rodando)",
-        LoopState.Suspended => "Suspenso",
-        LoopState.Error => "Erro",
-        _ => state.ToString(),
-    };
+    public static string StateText(LoopState state) => Loc.T($"state.{state}");
 
-    // ------------------------------------------------------------------ ventoinhas
+    // ------------------------------------------------------------------ fans
+
+    private void ModeRadio_Click(object sender, RoutedEventArgs e) => UpdateModeHelp();
+
+    /// <summary>Shows the explanation of the selected mode (firmware vs. AvellCC curve).</summary>
+    private void UpdateModeHelp()
+    {
+        var curve = CurveRadio.IsChecked == true;
+        ModeHelpFirmware.Visibility = curve ? Visibility.Collapsed : Visibility.Visible;
+        ModeHelpCurve.Visibility = curve ? Visibility.Visible : Visibility.Collapsed;
+        CurveCombo.IsEnabled = curve;
+    }
 
     private async void ApplyMode_Click(object sender, RoutedEventArgs e)
     {
@@ -244,7 +272,7 @@ public partial class MainWindow : Window
         CpuGrid.CommitEdit(DataGridEditingUnit.Row, true);
         GpuGrid.CommitEdit(DataGridEditingUnit.Row, true);
         if (!int.TryParse(HysteresisBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hysteresis))
-            throw new ArgumentException("Histerese precisa ser um número inteiro.");
+            throw new ArgumentException(Loc.T("fans.errHysteresis"));
         return new FanCurve
         {
             Name = NameBox.Text.Trim(),
@@ -260,12 +288,12 @@ public partial class MainWindow : Window
         await Run(async () =>
         {
             var curve = BuildCurveFromEditor();
-            curve.Validate();                       // erro claro antes de ir ao serviço
+            curve.Validate();                       // clear error before reaching the service
             await _client.SaveCurveAsync(curve);
             await ReloadSettingsAsync();
             CurveCombo.SelectedItem = _curves.FirstOrDefault(c => c.Name == curve.Name);
-            MessageBox.Show(this, $"Curva '{curve.Name}' salva." +
-                                  (_settings?.FanMode == "curve" && _settings.CurveName == curve.Name ? " Ela é a ativa: já está valendo." : " Use 'Aplicar modo' para ativá-la."),
+            var active = _settings?.FanMode == "curve" && _settings.CurveName == curve.Name;
+            MessageBox.Show(this, Loc.T("fans.saved", curve.Name) + Loc.T(active ? "fans.savedActive" : "fans.savedInactive"),
                             "AvellCC", MessageBoxButton.OK, MessageBoxImage.Information);
         });
     }
@@ -288,7 +316,7 @@ public partial class MainWindow : Window
 
     private void ChartCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => DrawChart();
 
-    // ------------------------------------------------------------------ gráfico
+    // ------------------------------------------------------------------ chart
 
     private void DrawChart()
     {
@@ -311,7 +339,7 @@ public partial class MainWindow : Window
             c.Children.Add(new Line { X1 = X(tMin), X2 = X(tMax), Y1 = Y(d), Y2 = Y(d), Stroke = GridBrush, StrokeThickness = 1 });
             AddText($"{d}%", 0, Y(d) - 8);
         }
-        // faixa do mínimo efetivo (25 %)
+        // effective minimum band (25 %)
         c.Children.Add(new Rectangle
         {
             Width = X(tMax) - X(tMin), Height = Y(0) - Y(DirectFanService.MinPercent),
@@ -363,7 +391,7 @@ public partial class MainWindow : Window
         }
     }
 
-    // ------------------------------------------------------------------ teclado
+    // ------------------------------------------------------------------ keyboard
 
     private void LoadKeyboard(KeyboardSettings kb)
     {
@@ -395,13 +423,7 @@ public partial class MainWindow : Window
             buttons[i].Visibility = i < visible ? Visibility.Visible : Visibility.Collapsed;
         }
         KbEffectCombo.IsEnabled = KbSpeed.IsEnabled = KbDirectionCombo.IsEnabled = KbMode == "effect";
-        KbHint.Text = KbMode switch
-        {
-            "static" => "Uma cor para o teclado inteiro.",
-            "zones" => "Uma cor para cada zona, da esquerda para a direita.",
-            "effect" => "Efeito do firmware do teclado. As cores formam a paleta do efeito.",
-            _ => "Iluminação desligada.",
-        };
+        KbHint.Text = Loc.T($"kb.hint.{KbMode}");
     }
 
     private void Zone_Click(object sender, RoutedEventArgs e)
@@ -430,7 +452,13 @@ public partial class MainWindow : Window
         await Run(async () => { _settings = await _client.SetKeyboardAsync(settings); });
     }
 
-    // ------------------------------------------------------------------ configurações
+    // ------------------------------------------------------------------ settings
+
+    private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingUi || LanguageCombo.SelectedItem is not LanguageInfo language) return;
+        Loc.Instance.Load(language.Code, remember: true);
+    }
 
     private void StartupCheck_Click(object sender, RoutedEventArgs e)
     {
@@ -438,13 +466,13 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "AvellCC", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
-    // ------------------------------------------------------------------ desenvolvimento
+    // ------------------------------------------------------------------ development
 
-    /// <summary>--screenshot &lt;pasta&gt;: renderiza cada aba em PNG (conferência visual automatizada).</summary>
+    /// <summary>--screenshot &lt;folder&gt;: renders every tab to PNG (automated visual check).</summary>
     public async Task CaptureTabsAsync(string directory)
     {
         System.IO.Directory.CreateDirectory(directory);
-        await Task.Delay(4000);      // tempo para o primeiro status e as configurações chegarem
+        await Task.Delay(4000);      // give the first status and settings time to arrive
         for (var i = 0; i < Tabs.Items.Count; i++)
         {
             Tabs.SelectedIndex = i;
@@ -456,13 +484,13 @@ public partial class MainWindow : Window
             bmp.Render(root);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bmp));
-            var header = ((TabItem)Tabs.Items[i]).Header?.ToString() ?? i.ToString(CultureInfo.InvariantCulture);
-            await using var file = System.IO.File.Create(System.IO.Path.Combine(directory, $"{i}-{header}.png"));
+            var tag = ((TabItem)Tabs.Items[i]).Tag?.ToString() ?? i.ToString(CultureInfo.InvariantCulture);
+            await using var file = System.IO.File.Create(System.IO.Path.Combine(directory, $"{i}-{tag}-{Loc.Instance.Language}.png"));
             encoder.Save(file);
         }
     }
 
-    // ------------------------------------------------------------------ utilitários
+    // ------------------------------------------------------------------ helpers
 
     private async Task Run(Func<Task> action)
     {

@@ -4,12 +4,13 @@ using AvellCC.Core.Safety;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Curva de ventoinha via "Office Mode Advanced" (o mecanismo que este EC obedece).
+/// Fan curve through the vendor's "Office Mode Advanced" (5 speeds at 0x743–0x747 + 0x751 = 0xA0).
+/// NOTE: this EC ignores it (docs/HARDWARE.md, tests 4 and 5); kept as a documented experiment for other models.
 ///
-/// Aplicar:   (1) vendor parado, (2) backup original dos registradores, (3) snapshot "antes",
-///            (4) grava T1..T5 em 0x743–0x747 e confere, (5) SÓ ENTÃO liga o modo (0x751 = 0xA0) e confere.
-/// Restaurar: volta 0x751 PRIMEIRO (sai do modo Office antes de mexer nas velocidades), depois o resto.
-/// Qualquer divergência na conferência leva ao snapshot "antes", na ordem de restauração.
+/// Apply:   (1) vendor stopped, (2) original register backup, (3) "before" snapshot,
+///          (4) write T1..T5 to 0x743–0x747 and verify, (5) ONLY THEN enable the mode (0x751 = 0xA0) and verify.
+/// Restore: 0x751 FIRST (leave Office mode before touching the speeds), then the rest.
+/// Any read-back mismatch returns to the "before" snapshot, in restore order.
 /// </summary>
 public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, Func<MachineInfo> machine, Func<string[]> vendorRunning)
 {
@@ -18,10 +19,10 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
     private static readonly ushort[] PwmRegisters =
         Enumerable.Range(EcAddresses.OfficeAdvPwmStart, EcAddresses.OfficeAdvPwmCount).Select(a => (ushort)a).ToArray();
 
-    /// <summary>Nome do grupo de backup (v2 inclui 0x727; o grupo antigo "ec-registers" fica como histórico).</summary>
+    /// <summary>Backup group name (v2 includes 0x727; the old "ec-registers" group is kept as history).</summary>
     public const string BackupGroup = "ec-office";
 
-    /// <summary>Tudo que entra no backup. A ordem de restauração começa pelo modo.</summary>
+    /// <summary>Everything in the backup. Restore order starts with the mode register.</summary>
     public static readonly ushort[] TrackedRegisters =
     [
         EcAddresses.FanControl, EcAddresses.CustomProfile, EcAddresses.ApOemByte3,
@@ -39,13 +40,13 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         (ec.Read(EcAddresses.BiosOemByte2) & 0x08) != 0,
         ec.Read(EcAddresses.CustomProfile));
 
-    /// <summary>Lê os registradores duas vezes; só aceita se forem iguais.</summary>
+    /// <summary>Reads the registers twice; only accepts them if both reads match.</summary>
     public EcRegisterSnapshot ReadStable(string createdBy)
     {
         var first = ReadTracked();
         var second = ReadTracked();
         if (first.Any(kv => second[kv.Key] != kv.Value))
-            throw new InvalidOperationException("Os registradores mudaram entre duas leituras: outro processo está escrevendo no EC.");
+            throw new InvalidOperationException("The registers changed between two reads: another process is writing to the EC.");
         return EcRegisterSnapshot.From(first, machine(), vendorRunning(), createdBy);
     }
 
@@ -64,10 +65,10 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         for (var i = 0; i < raw.Length; i++) target[PwmRegisters[i]] = raw[i];
         WriteGuarded($"office-{curve.Name}", () =>
         {
-            WriteVerified(PwmRegisters.Select(a => (a, target[a])));                 // velocidades primeiro
+            WriteVerified(PwmRegisters.Select(a => (a, target[a])));                 // speeds first
             if (curve.CustomProfile)
                 WriteVerified([(EcAddresses.CustomProfile, (byte)(ec.Read(EcAddresses.CustomProfile) | EcAddresses.CustomProfileBit))]);
-            WriteVerified([(EcAddresses.FanControl, OfficeAdvancedMode)]);           // modo por último
+            WriteVerified([(EcAddresses.FanControl, OfficeAdvancedMode)]);           // mode last
         });
     }
 
@@ -79,10 +80,10 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
 
     private void WriteGuarded(string reason, Action write)
     {
-        var running = vendorRunning();                 // Regra 1
+        var running = vendorRunning();                 // Rule 1
         if (running.Length > 0) throw new VendorRunningException(running);
 
-        EnsureOriginalBackup();                        // Regra 2
+        EnsureOriginalBackup();                        // Rule 2
         var before = EcRegisterSnapshot.From(ReadTracked(), machine(), vendorRunning(), $"AvellCC/before-{reason}");
         store.SaveSnapshot(before, $"before-{reason}");
 
@@ -93,11 +94,11 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         catch (Exception ex)
         {
             WriteInRestoreOrder(before.Values());
-            throw new InvalidOperationException($"Falha ao gravar ({ex.Message}). O estado anterior foi restaurado.", ex);
+            throw new InvalidOperationException($"Write failed ({ex.Message}). The previous state was restored.", ex);
         }
     }
 
-    /// <summary>Modo (0x751) primeiro, depois os demais na ordem de TrackedRegisters.</summary>
+    /// <summary>Mode (0x751) first, then the others in TrackedRegisters order.</summary>
     private void WriteInRestoreOrder(IReadOnlyDictionary<ushort, byte> values) =>
         WriteVerified(TrackedRegisters.Where(values.ContainsKey).Select(a => (a, values[a])));
 
@@ -108,7 +109,7 @@ public sealed class OfficeFanService(IEcAccess ec, EcRegisterBackupStore store, 
         {
             var (address, value) = list[i];
             if (ec.Read(address) != value) ec.Write(address, value);
-            if (ec.Read(address) != value) throw new InvalidOperationException($"Read-back divergente em 0x{address:X3}.");
+            if (ec.Read(address) != value) throw new InvalidOperationException($"Read-back mismatch at 0x{address:X3}.");
             Progress?.Invoke(i + 1, list.Count);
         }
     }
@@ -122,10 +123,10 @@ public sealed record OfficeState(byte FanControl, int[] Duties, int[] DefaultDut
 
     public string ModeName => FanControl switch
     {
-        0x00 => "Gaming (curva interna do firmware)",
-        0x40 => "Turbo / FanBoost",
+        0x00 => "Gaming (firmware internal curve)",
+        0x40 => "Turbo / Fan Boost",
         OfficeFanService.OfficeAdvancedMode => "Office Advanced (T1..T5)",
-        >= 0x80 and <= 0x85 => $"Office Basic, nível {FanControl - 0x80}",
-        _ => $"desconhecido (0x{FanControl:X2})",
+        >= 0x80 and <= 0x85 => $"Office Basic, level {FanControl - 0x80}",
+        _ => $"unknown (0x{FanControl:X2})",
     };
 }

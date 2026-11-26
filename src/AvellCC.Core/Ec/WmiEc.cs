@@ -4,8 +4,8 @@ using System.Runtime.Versioning;
 namespace AvellCC.Core.Ec;
 
 /// <summary>
-/// EC via método ACPI/WMI do BIOS Uniwill: root\WMI AcpiTest_MULong.GetSetULong.
-/// Exige administrador. Formato confirmado no IL de MyControlCenter.WMIEC (GCUService.exe).
+/// EC through the Uniwill BIOS ACPI/WMI method: root\WMI AcpiTest_MULong.GetSetULong.
+/// Requires administrator rights. Argument format confirmed in the IL of the vendor's MyControlCenter.WMIEC (GCUService.exe).
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class WmiEc : IEcAccess, IDisposable
@@ -14,7 +14,7 @@ public sealed class WmiEc : IEcAccess, IDisposable
     public const string ObjectPath = @"AcpiTest_MULong.InstanceName='ACPI\PNP0C14\1_1'";
     private const string Method = "GetSetULong";
 
-    /// <summary>Bit 40. Sem ele, a chamada é interpretada como ESCRITA de 0.</summary>
+    /// <summary>Bit 40. Without it, the call is interpreted as a WRITE of 0.</summary>
     internal const ulong ReadFlag = 0x100_0000_0000UL;
 
     private readonly ManagementObject _obj;
@@ -23,7 +23,7 @@ public sealed class WmiEc : IEcAccess, IDisposable
     public WmiEc()
     {
         _obj = new ManagementObject(Namespace, ObjectPath, null);
-        _obj.Get(); // falha cedo se a instância não existir ou faltar privilégio
+        _obj.Get(); // fail early if the instance does not exist or privileges are missing
     }
 
     internal static ulong EncodeRead(ushort address) => ReadFlag + address;

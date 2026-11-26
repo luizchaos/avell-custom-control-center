@@ -8,11 +8,16 @@
     <Version>0.4.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <!-- WinForms só para NotifyIcon e ColorDialog: sem usings globais, para não conflitar com WPF -->
+    <!-- WinForms only for NotifyIcon and ColorDialog: no global usings, to avoid clashing with WPF types -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AvellCC.Ipc\AvellCC.Ipc.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- One JSON file per UI language, copied next to the exe (users can add languages without rebuilding). -->
+    <None Update="Languages\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Languages\README.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

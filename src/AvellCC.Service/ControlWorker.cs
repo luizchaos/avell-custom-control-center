@@ -2,7 +2,7 @@ using AvellCC.Ipc;
 
 namespace AvellCC.Service;
 
-/// <summary>Loop do serviço: inicializa, roda o pipe para a UI e chama o ciclo das ventoinhas a cada 2 s.</summary>
+/// <summary>Service loop: initializes, runs the UI pipe and calls the fan cycle every 2 s.</summary>
 public sealed class ControlWorker(ControlHub hub, HubOptions options, ILogger<ControlWorker> log) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
@@ -10,7 +10,7 @@ public sealed class ControlWorker(ControlHub hub, HubOptions options, ILogger<Co
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         hub.Initialize();
-        var server = new PipeServer(options.PipeName, hub.HandleAsync, ex => log.LogWarning("Comando da UI falhou: {Message}", ex.Message));
+        var server = new PipeServer(options.PipeName, hub.HandleAsync, ex => log.LogWarning("UI command failed: {Message}", ex.Message));
         var serverTask = Task.Run(() => server.RunAsync(stoppingToken), stoppingToken);
 
         try
@@ -24,7 +24,7 @@ public sealed class ControlWorker(ControlHub hub, HubOptions options, ILogger<Co
         }
         catch (OperationCanceledException)
         {
-            // parada normal
+            // normal stop
         }
         finally
         {

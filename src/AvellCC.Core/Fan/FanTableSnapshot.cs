@@ -5,8 +5,8 @@ using AvellCC.Core.Ec;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Imagem crua da tabela de ventoinha do EC (0xF00–0xF5F) mais metadados.
-/// Mesmo esquema JSON gerado por tools/diag/Invoke-AvellDiag.ps1 ("avellcc.fan-table.v1").
+/// Raw image of the EC fan table (0xF00–0xF5F) plus metadata.
+/// Same JSON schema as written by tools/diag/Invoke-AvellDiag.ps1 ("avellcc.fan-table.v1").
 /// </summary>
 public sealed partial record FanTableSnapshot
 {
@@ -27,7 +27,7 @@ public sealed partial record FanTableSnapshot
     public static FanTableSnapshot FromRaw(byte[] raw, MachineInfo machine, IReadOnlyDictionary<ushort, byte> modes, string[] vendorRunning, string createdBy)
     {
         if (raw.Length != EcAddresses.FanTableLength)
-            throw new ArgumentException($"Tabela deve ter {EcAddresses.FanTableLength} bytes, tem {raw.Length}.", nameof(raw));
+            throw new ArgumentException($"The table must be {EcAddresses.FanTableLength} bytes, got {raw.Length}.", nameof(raw));
         return new FanTableSnapshot
         {
             CreatedAt = DateTimeOffset.Now,
@@ -42,20 +42,20 @@ public sealed partial record FanTableSnapshot
 
     public static string ComputeSha256(byte[] raw) => Convert.ToHexString(SHA256.HashData(raw));
 
-    /// <summary>Confere esquema, tamanho e hash. Lança se o arquivo estiver corrompido.</summary>
+    /// <summary>Checks schema, size and hash. Throws if the file is corrupt.</summary>
     public void Validate()
     {
-        if (Schema != SchemaId) throw new InvalidDataException($"Esquema desconhecido: {Schema}");
+        if (Schema != SchemaId) throw new InvalidDataException($"Unknown schema: {Schema}");
         var raw = Raw;
-        if (raw.Length != EcAddresses.FanTableLength) throw new InvalidDataException($"Tamanho inválido: {raw.Length}");
+        if (raw.Length != EcAddresses.FanTableLength) throw new InvalidDataException($"Invalid size: {raw.Length}");
         if (!string.Equals(ComputeSha256(raw), Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("SHA-256 não confere: backup corrompido.");
+            throw new InvalidDataException("SHA-256 mismatch: corrupt backup.");
     }
 
     /// <summary>
-    /// Valores salvos dos registradores de modo da ventoinha (EcAddresses.FanModeRegisters).
-    /// Aceita as chaves no formato do C# ("0x751") e no do script PowerShell ("FAN_CONTROL_0x751").
-    /// Registradores extras do script (ex.: 0x782) são ignorados.
+    /// Saved values of the fan mode registers (EcAddresses.FanModeRegisters).
+    /// Accepts both key formats: C# ("0x751") and the PowerShell script ("FAN_CONTROL_0x751").
+    /// Extra registers written by the script (e.g. 0x782) are ignored.
     /// </summary>
     public IReadOnlyDictionary<ushort, byte> FanModeRegisterValues()
     {
@@ -63,14 +63,14 @@ public sealed partial record FanTableSnapshot
         foreach (var (key, value) in ModeRegisters)
         {
             var match = AddressSuffix().Match(key);
-            if (!match.Success) throw new InvalidDataException($"Chave de registrador inválida: {key}");
+            if (!match.Success) throw new InvalidDataException($"Invalid register key: {key}");
             var address = Convert.ToUInt16(match.Groups[1].Value, 16);
             if (!EcAddresses.FanModeRegisters.Contains(address)) continue;
             result[address] = Convert.ToByte(value.Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
         }
         var missing = EcAddresses.FanModeRegisters.Where(a => !result.ContainsKey(a)).ToArray();
         if (missing.Length > 0)
-            throw new InvalidDataException($"Backup sem registradores de modo: {string.Join(", ", missing.Select(a => $"0x{a:X3}"))}");
+            throw new InvalidDataException($"Backup is missing mode registers: {string.Join(", ", missing.Select(a => $"0x{a:X3}"))}");
         return result;
     }
 
@@ -89,7 +89,7 @@ public sealed record MachineInfo
     [JsonPropertyName("projectId")] public string ProjectId { get; init; } = "";
 }
 
-/// <summary>Visão decodificada de um nível da tabela (bytes crus, como estão no EC).</summary>
+/// <summary>Decoded view of one table level (raw bytes, as stored in the EC).</summary>
 public readonly record struct FanLevel(int Level, byte UpRaw, byte DownRaw, byte DutyRaw)
 {
     public double DutyPercent => DutyRaw / 2.0;

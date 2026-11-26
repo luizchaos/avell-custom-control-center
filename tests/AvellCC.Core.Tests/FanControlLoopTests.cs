@@ -81,7 +81,7 @@ public sealed class FanControlLoopTests : IDisposable
         _ec.Seed(EcAddresses.FanControl, [0x00]);     // tecla Fn / BIOS desligou
         var s = _loop.Tick();
         Assert.True(FullFan);
-        Assert.Contains("reassumido", s.Message);
+        Assert.Contains("re-acquired", s.Message);
     }
 
     [Fact]

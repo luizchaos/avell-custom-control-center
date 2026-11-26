@@ -1,30 +1,30 @@
 namespace AvellCC.Core.Fan;
 
-/// <summary>Parâmetros de segurança e suavização do controlador.</summary>
+/// <summary>Safety and smoothing parameters of the controller.</summary>
 public sealed record ControllerOptions
 {
-    /// <summary>Duty mínimo com a ventoinha girando (tuxedo: 25 %). Nunca paramos as ventoinhas.</summary>
+    /// <summary>Minimum duty with the fan spinning (tuxedo: 25 %). Fans are never stopped.</summary>
     public int MinDuty { get; init; } = DirectFanService.MinPercent;
-    /// <summary>Quanto o duty pode cair por segundo (subir é imediato). Evita o "sobe e desce" audível.</summary>
+    /// <summary>How fast the duty may drop per second (rising is immediate). Avoids audible up-and-down.</summary>
     public double MaxDownPerSecond { get; init; } = 2.0;
     public int CpuEmergency { get; init; } = 92;
     public int GpuEmergency { get; init; } = 87;
-    /// <summary>A emergência só termina quando a temperatura cai este tanto abaixo do limite.</summary>
+    /// <summary>The emergency only ends when the temperature drops this much below the limit.</summary>
     public int EmergencyRelease { get; init; } = 10;
-    /// <summary>Regrava o duty mesmo sem mudança depois deste intervalo.</summary>
+    /// <summary>Rewrites the duty after this interval even without changes.</summary>
     public TimeSpan KeepAlive { get; init; } = TimeSpan.FromSeconds(30);
 }
 
-/// <summary>Decisão de um ciclo. Fan1/Fan2 em % (já com mínimo, rampa e emergência aplicados).</summary>
+/// <summary>Decision of one cycle. Fan1/Fan2 in % (minimum, ramp and emergency already applied).</summary>
 public readonly record struct FanDecision(int Fan1, int Fan2, double CpuEffective, double GpuEffective, bool Emergency, string? Reason, bool ShouldWrite);
 
 /// <summary>
-/// Controlador de curva aplicado pelo software (o EC deste notebook só aceita duty direto).
-/// Lógica pura: recebe amostras e devolve o duty. Quem grava no EC é o chamador.
+/// Software fan-curve controller (this laptop's EC only accepts a direct duty).
+/// Pure logic: takes samples and returns the duty. The caller writes to the EC.
 ///
-/// Histerese: a temperatura "efetiva" segue a real na subida; na descida, só cai quando a real fica
-/// mais de <c>curve.Hysteresis</c> °C abaixo dela. Rampa: subir é imediato; descer é limitado a
-/// <see cref="ControllerOptions.MaxDownPerSecond"/>. Emergência e leitura inválida → 100 %.
+/// Hysteresis: the "effective" temperature follows the real one going up; going down, it only drops once the real
+/// temperature is more than <c>curve.Hysteresis</c> °C below it. Ramp: rising is immediate; falling is limited to
+/// <see cref="ControllerOptions.MaxDownPerSecond"/>. Emergency and invalid readings → 100 %.
 /// </summary>
 public sealed class FanCurveController(FanCurve curve, ControllerOptions? options = null)
 {
@@ -44,7 +44,7 @@ public sealed class FanCurveController(FanCurve curve, ControllerOptions? option
 
         string? reason = null;
         var invalid = s.CpuTemp is 0 or 255 || s.GpuTemp is 255;
-        if (invalid) reason = $"leitura inválida (CPU {s.CpuTemp}, GPU {s.GpuTemp})";
+        if (invalid) reason = $"invalid reading (CPU {s.CpuTemp}, GPU {s.GpuTemp})";
 
         if (!invalid && (s.CpuTemp >= _o.CpuEmergency || s.GpuTemp >= _o.GpuEmergency))
         {
@@ -54,7 +54,7 @@ public sealed class FanCurveController(FanCurve curve, ControllerOptions? option
         {
             _emergency = false;
         }
-        if (_emergency) reason ??= $"emergência (CPU {s.CpuTemp} °C / GPU {s.GpuTemp} °C)";
+        if (_emergency) reason ??= $"emergency (CPU {s.CpuTemp} °C / GPU {s.GpuTemp} °C)";
 
         double target1, target2;
         if (invalid || _emergency)

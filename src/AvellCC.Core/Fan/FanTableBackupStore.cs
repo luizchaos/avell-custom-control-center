@@ -1,8 +1,8 @@
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Backups da tabela de ventoinha em %ProgramData%\AvellCC\backup.
-/// Regra: fan-table.original.json é criado UMA vez e nunca é sobrescrito (docs/ARCHITECTURE.md, Regra 2).
+/// Fan table backups in %ProgramData%\AvellCC\backup.
+/// Rule: fan-table.original.json is created ONCE and never overwritten (docs/ARCHITECTURE.md, Rule 2).
 /// </summary>
 public sealed class FanTableBackupStore(string? directory = null)
 {
@@ -12,7 +12,7 @@ public sealed class FanTableBackupStore(string? directory = null)
     public string OriginalPath => Path.Combine(Directory, OriginalFileName);
     public bool HasOriginal => File.Exists(OriginalPath);
 
-    /// <summary>Lê e valida o original. Lança se não existir ou estiver corrompido.</summary>
+    /// <summary>Reads and validates the original. Throws if missing or corrupt.</summary>
     public FanTableSnapshot LoadOriginal()
     {
         var snapshot = BackupFiles.Load<FanTableSnapshot>(OriginalPath);
@@ -20,14 +20,14 @@ public sealed class FanTableBackupStore(string? directory = null)
         return snapshot;
     }
 
-    /// <summary>Cria o original se ainda não existir. Retorna true se criou agora.</summary>
+    /// <summary>Creates the original if it does not exist yet. Returns true if it was created now.</summary>
     public bool TryCreateOriginal(FanTableSnapshot snapshot)
     {
         snapshot.Validate();
         return BackupFiles.TryCreateReadOnly(OriginalPath, snapshot);
     }
 
-    /// <summary>Snapshot datado: um antes de cada escrita. Retorna o caminho.</summary>
+    /// <summary>Timestamped snapshot: one before every write. Returns the path.</summary>
     public string SaveSnapshot(FanTableSnapshot snapshot, string reason)
     {
         snapshot.Validate();

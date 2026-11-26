@@ -2,7 +2,7 @@ using Microsoft.Win32;
 
 namespace AvellCC.App;
 
-/// <summary>Início com o Windows para o usuário atual (HKCU\...\Run), sem admin. O serviço inicia sozinho.</summary>
+/// <summary>Start with Windows for the current user (HKCU\...\Run), no admin needed. The service starts on its own.</summary>
 public static class StartupRegistration
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

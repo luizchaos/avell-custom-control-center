@@ -4,17 +4,17 @@ using System.Text.Json.Serialization;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Curva editável pelo usuário: pontos (°C, %) ligados por retas, um conjunto para a CPU e outro para a GPU.
-/// O EC não entende retas: <see cref="FanTableEncoder"/> transforma a curva numa escada de 16 níveis
-/// que fica SEMPRE igual ou acima da curva (nunca ventila menos do que o desenhado).
+/// User-editable curve: (°C, %) points joined by straight lines, one set for the CPU and one for the GPU.
+/// Applied in software by <see cref="FanCurveController"/> (direct control). <see cref="FanTableEncoder"/> can also turn it
+/// into the EC's 16-level table, but this EC ignores that table (see docs/HARDWARE.md).
 /// </summary>
 public sealed record FanCurve
 {
     public const int MinPoints = 2;
     public const int MaxPoints = 16;
     public const int MinTemp = 20;
-    public const int MaxLastPointTemp = 90;     // a partir daqui o último nível vale para qualquer temperatura
-    public const int MinLastPointDuty = 80;     // ... e precisa ventilar forte
+    public const int MaxLastPointTemp = 90;     // the last point applies to every temperature above it...
+    public const int MinLastPointDuty = 80;     // ...so it must cool hard
     public const int MinHysteresis = 2;
     public const int MaxHysteresis = 10;
 
@@ -22,17 +22,15 @@ public sealed record FanCurve
     [JsonPropertyName("hysteresis")] public int Hysteresis { get; init; } = 4;
 
     /// <summary>
-    /// O que gravar em 0x751 ao ativar a tabela:
-    /// "keep" = não mexe (fica o valor atual, 0x00 no estado de fábrica);
-    /// "standard" = 0xA0 (modo Standard do vendor; no teste de 2026-11-26 as ventoinhas travaram em ~4000 RPM);
-    /// "performance" = 0x40 (FanBoost do vendor).
+    /// Only for the (ignored) 0xF00 table experiments: what to write to 0x751 when enabling the table.
+    /// "keep" = leave it (0x00 in the factory state); "standard" = 0xA0 (vendor Standard mode; capped fans at ~4000 RPM
+    /// in the 2026-11-26 test); "performance" = 0x40 (vendor Fan Boost).
     /// </summary>
     [JsonPropertyName("ecMode")] public string EcMode { get; init; } = "keep";
 
     /// <summary>
-    /// Controle direto: true = as duas ventoinhas usam max(curva CPU, curva GPU). O padrão é true porque as
-    /// ventoinhas dividem os heatpipes; com o firmware, a ventoinha 2 acompanhou a CPU.
-    /// false = ventoinha 1 segue a CPU e ventoinha 2 segue a GPU.
+    /// true = both fans use max(CPU curve, GPU curve). Default, because the fans share heat pipes
+    /// (under firmware control, fan 2 followed the CPU). false = fan 1 follows the CPU and fan 2 the GPU.
     /// </summary>
     [JsonPropertyName("shared")] public bool Shared { get; init; } = true;
     [JsonPropertyName("cpu")] public CurvePoint[] Cpu { get; init; } = [];
@@ -43,21 +41,21 @@ public sealed record FanCurve
     public static FanCurve Load(string path)
     {
         var curve = JsonSerializer.Deserialize<FanCurve>(File.ReadAllText(path), Json)
-                    ?? throw new InvalidDataException("Curva vazia.");
+                    ?? throw new InvalidDataException("Empty curve.");
         curve.Validate();
         return curve;
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
-    /// <summary>Lança <see cref="FanCurveException"/> com todos os problemas encontrados.</summary>
+    /// <summary>Throws <see cref="FanCurveException"/> listing every problem found.</summary>
     public void Validate()
     {
         var errors = new List<string>();
         if (Hysteresis is < MinHysteresis or > MaxHysteresis)
-            errors.Add($"hysteresis deve estar entre {MinHysteresis} e {MaxHysteresis} °C (é {Hysteresis}).");
+            errors.Add($"hysteresis must be between {MinHysteresis} and {MaxHysteresis} °C (got {Hysteresis}).");
         if (EcMode is not ("keep" or "standard" or "performance"))
-            errors.Add($"ecMode deve ser keep, standard ou performance (é '{EcMode}').");
+            errors.Add($"ecMode must be keep, standard or performance (got '{EcMode}').");
         ValidatePoints("cpu", Cpu, errors);
         ValidatePoints("gpu", Gpu, errors);
         if (errors.Count > 0) throw new FanCurveException(errors);
@@ -67,29 +65,27 @@ public sealed record FanCurve
     {
         if (points.Length is < MinPoints or > MaxPoints)
         {
-            errors.Add($"{name}: precisa de {MinPoints} a {MaxPoints} pontos (tem {points.Length}).");
+            errors.Add($"{name}: needs {MinPoints} to {MaxPoints} points (has {points.Length}).");
             return;
         }
         for (var i = 0; i < points.Length; i++)
         {
             var p = points[i];
-            if (p.Duty is < 0 or > 100) errors.Add($"{name}[{i}]: duty {p.Duty}% fora de 0–100.");
-            if (p.Temp < MinTemp) errors.Add($"{name}[{i}]: temperatura {p.Temp} °C abaixo de {MinTemp}.");
+            if (p.Duty is < 0 or > 100) errors.Add($"{name}[{i}]: duty {p.Duty}% is outside 0–100.");
+            if (p.Temp < MinTemp) errors.Add($"{name}[{i}]: temperature {p.Temp} °C is below {MinTemp}.");
             if (i == 0) continue;
-            if (p.Temp <= points[i - 1].Temp) errors.Add($"{name}[{i}]: temperaturas precisam ser estritamente crescentes.");
-            if (p.Duty < points[i - 1].Duty) errors.Add($"{name}[{i}]: duty não pode diminuir quando a temperatura sobe.");
+            if (p.Temp <= points[i - 1].Temp) errors.Add($"{name}[{i}]: temperatures must be strictly increasing.");
+            if (p.Duty < points[i - 1].Duty) errors.Add($"{name}[{i}]: duty must not decrease as temperature rises.");
         }
         var last = points[^1];
-        if (last.Temp > MaxLastPointTemp) errors.Add($"{name}: o último ponto precisa estar em até {MaxLastPointTemp} °C (está em {last.Temp}).");
-        if (last.Duty < MinLastPointDuty) errors.Add($"{name}: o último ponto precisa ter pelo menos {MinLastPointDuty}% (tem {last.Duty}%).");
+        if (last.Temp > MaxLastPointTemp) errors.Add($"{name}: the last point must be at or below {MaxLastPointTemp} °C (is at {last.Temp}).");
+        if (last.Duty < MinLastPointDuty) errors.Add($"{name}: the last point must be at least {MinLastPointDuty}% (is {last.Duty}%).");
         var span = last.Temp - points[0].Temp;
         if (span < FanTableEncoder.Levels - 1)
-            errors.Add($"{name}: a curva precisa cobrir pelo menos {FanTableEncoder.Levels - 1} °C entre o primeiro e o último ponto (cobre {span}).");
-        if (span / (FanTableEncoder.Levels - 1) < 1)
-            errors.Add($"{name}: degraus menores que 1 °C.");
+            errors.Add($"{name}: the curve must span at least {FanTableEncoder.Levels - 1} °C between the first and last points (spans {span}).");
     }
 
-    /// <summary>Duty (%) da curva numa temperatura, interpolando linearmente entre os pontos.</summary>
+    /// <summary>Curve duty (%) at a temperature, linearly interpolated between points.</summary>
     public static double Evaluate(IReadOnlyList<CurvePoint> points, double temp)
     {
         if (temp <= points[0].Temp) return points[0].Duty;
@@ -109,7 +105,7 @@ public sealed record FanCurve
 public readonly record struct CurvePoint([property: JsonPropertyName("temp")] int Temp, [property: JsonPropertyName("duty")] int Duty);
 
 public sealed class FanCurveException(IReadOnlyList<string> errors)
-    : ArgumentException("Curva inválida:\n  - " + string.Join("\n  - ", errors))
+    : ArgumentException("Invalid curve:\n  - " + string.Join("\n  - ", errors))
 {
     public IReadOnlyList<string> Errors { get; } = errors;
 }

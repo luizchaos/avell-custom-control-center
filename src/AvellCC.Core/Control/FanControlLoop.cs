@@ -5,7 +5,7 @@ namespace AvellCC.Core.Control;
 
 public enum LoopState { Firmware, Curve, Emergency, BlockedByVendor, Suspended, Error }
 
-/// <summary>Fotografia do estado, publicada a cada ciclo para a UI.</summary>
+/// <summary>State snapshot, published every cycle for the UI.</summary>
 public sealed record ControlStatus
 {
     public DateTimeOffset Time { get; init; }
@@ -15,7 +15,7 @@ public sealed record ControlStatus
     public int GpuTemp { get; init; }
     public int Fan1Rpm { get; init; }
     public int Fan2Rpm { get; init; }
-    /// <summary>Duty real lido de 0x1804/0x1809 (vale também com o firmware no controle).</summary>
+    /// <summary>Actual duty read from 0x1804/0x1809 (also valid while the firmware is in control).</summary>
     public double Fan1Duty { get; init; }
     public double Fan2Duty { get; init; }
     public bool DirectControl { get; init; }
@@ -24,12 +24,12 @@ public sealed record ControlStatus
 }
 
 /// <summary>
-/// Loop de controle das ventoinhas, usado pelo serviço. Thread-safe. <see cref="Tick"/> é chamado a cada ~2 s.
-/// Regras:
-///  - modo firmware: o controle direto fica desligado (inclusive o que sobrou de uma queda anterior);
-///  - modo curva:    o <see cref="FanCurveController"/> decide, e o duty é gravado só na mudança/keep-alive;
-///                   se o 0x751 perder o bit 6, o loop reassume;
-///  - vendor rodando, suspensão ou erro: o controle volta ao firmware (estado seguro).
+/// Fan control loop used by the service. Thread-safe. <see cref="Tick"/> is called every ~2 s.
+/// Rules:
+///  - firmware mode: direct control stays off (including any left over from a previous crash);
+///  - curve mode:    <see cref="FanCurveController"/> decides, and the duty is written only on change/keep-alive;
+///                   if 0x751 loses bit 6, the loop takes control again;
+///  - vendor app running, sleep or error: control returns to the firmware (safe state).
 /// </summary>
 public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<string[]> vendorRunning, ControllerOptions? options = null)
 {
@@ -74,7 +74,7 @@ public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<s
         }
     }
 
-    /// <summary>Parada do serviço: devolve ao firmware.</summary>
+    /// <summary>Service stop: hand control back to the firmware.</summary>
     public void Shutdown()
     {
         lock (_lock) ReleaseToFirmware();
@@ -98,10 +98,10 @@ public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<s
                 }
                 else if (vendor.Length > 0)
                 {
-                    // Regra 1: com o vendor ativo, não disputamos o EC.
+                    // Rule 1: with the vendor app active, we do not fight over the EC.
                     if (direct.Active) direct.Disable();
                     state = LoopState.BlockedByVendor;
-                    message = $"Avell Custom Control em execução ({string.Join(", ", vendor)}).";
+                    message = $"Avell Custom Control is running ({string.Join(", ", vendor)}).";
                 }
                 else if (_controller is null)
                 {
@@ -114,7 +114,7 @@ public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<s
                     var fullFan = (ec.Read(EcAddresses.FanControl) & EcAddresses.FullFanModeBit) != 0;
                     if (!direct.Active || !fullFan)
                     {
-                        if (direct.Active && !fullFan) message = "0x751 perdeu o bit 6; reassumido.";
+                        if (direct.Active && !fullFan) message = "0x751 lost bit 6; control re-acquired.";
                         direct.Enable(d.Fan1, d.Fan2, takeOver: true);
                     }
                     else if (d.ShouldWrite)
@@ -129,8 +129,8 @@ public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<s
             }
             catch (Exception ex)
             {
-                // Falha: devolve ao firmware (seguro) e reporta. O próximo Tick tenta de novo.
-                try { if (direct.Active) direct.Disable(); } catch { /* o erro original é o que importa */ }
+                // Failure: hand back to the firmware (safe) and report. The next Tick tries again.
+                try { if (direct.Active) direct.Disable(); } catch { /* the original error is what matters */ }
                 return Publish(sample, LoopState.Error, ex.Message, []);
             }
         }
@@ -138,7 +138,7 @@ public sealed class FanControlLoop(IEcAccess ec, DirectFanService direct, Func<s
 
     private void ReleaseToFirmware()
     {
-        // Também cobre o bit 6 que sobrou de uma queda (direct.Active = false, mas o EC ainda em modo direto).
+        // Also covers a bit 6 left over from a crash (direct.Active = false, but the EC still in direct mode).
         if (direct.Active || (vendorRunning().Length == 0 && (ec.Read(EcAddresses.FanControl) & EcAddresses.FullFanModeBit) != 0))
             direct.Disable();
     }

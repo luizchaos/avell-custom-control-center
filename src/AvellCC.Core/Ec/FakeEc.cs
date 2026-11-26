@@ -1,6 +1,6 @@
 namespace AvellCC.Core.Ec;
 
-/// <summary>EC em memória, para testes e para rodar a UI sem hardware.</summary>
+/// <summary>In-memory EC, for tests.</summary>
 public sealed class FakeEc : IEcAccess
 {
     private readonly byte[] _ram = new byte[0x10000];

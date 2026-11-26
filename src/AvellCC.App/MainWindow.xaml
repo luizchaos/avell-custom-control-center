@@ -1,7 +1,8 @@
 <Window x:Class="AvellCC.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AvellCC" Width="1040" Height="720" MinWidth="820" MinHeight="560"
+        xmlns:l="clr-namespace:AvellCC.App.Localization"
+        Title="AvellCC" Width="1040" Height="740" MinWidth="820" MinHeight="560"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <Style TargetType="DataGrid">
@@ -30,12 +31,12 @@
     </Window.Resources>
 
     <DockPanel Background="{StaticResource Bg}">
-        <!-- Cabeçalho -->
+        <!-- Header -->
         <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" Padding="20,12" BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
             <Grid>
                 <StackPanel>
                     <TextBlock Text="AvellCC" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="MachineText" Style="{StaticResource Caption}" Text="conectando ao serviço…"/>
+                    <TextBlock x:Name="MachineText" Style="{StaticResource Caption}" Text="{l:Tr header.connecting}"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="{StaticResource Muted}" Margin="0,0,8,0"/>
@@ -44,45 +45,45 @@
             </Grid>
         </Border>
 
-        <!-- Aviso (serviço indisponível, emergência, vendor rodando...) -->
+        <!-- Warning banner (service unavailable, emergency, vendor app running...) -->
         <Border x:Name="Banner" DockPanel.Dock="Top" Visibility="Collapsed" Background="{StaticResource Warn}" Padding="20,8">
             <TextBlock x:Name="BannerText" Foreground="#16181D" FontWeight="SemiBold" TextWrapping="Wrap"/>
         </Border>
 
         <TabControl x:Name="Tabs" Margin="12" Background="{StaticResource Bg}" BorderThickness="0">
 
-            <!-- ============ PAINEL ============ -->
-            <TabItem Header="Painel">
+            <!-- ============ DASHBOARD ============ -->
+            <TabItem Header="{l:Tr tab.dashboard}" Tag="dashboard">
                 <WrapPanel Margin="8">
                     <Border Style="{StaticResource Card}" Width="220">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="CPU (EC)"/>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.cpu}"/>
                             <TextBlock x:Name="CpuText" Style="{StaticResource Big}" Text="— °C"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}" Width="220">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="GPU (EC)"/>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.gpu}"/>
                             <TextBlock x:Name="GpuText" Style="{StaticResource Big}" Text="— °C"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}" Width="220">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="Ventoinha 1"/>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan1}"/>
                             <TextBlock x:Name="Fan1Text" Style="{StaticResource Big}" Text="— RPM"/>
                             <TextBlock x:Name="Fan1Duty" Style="{StaticResource Caption}" Text="—"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}" Width="220">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="Ventoinha 2"/>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan2}"/>
                             <TextBlock x:Name="Fan2Text" Style="{StaticResource Big}" Text="— RPM"/>
                             <TextBlock x:Name="Fan2Duty" Style="{StaticResource Caption}" Text="—"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}" Width="456">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="Controle das ventoinhas"/>
+                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.control}"/>
                             <TextBlock x:Name="ModeText" FontSize="22" FontWeight="SemiBold" Text="—"/>
                             <TextBlock x:Name="MessageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Text=""/>
                         </StackPanel>
@@ -90,8 +91,8 @@
                 </WrapPanel>
             </TabItem>
 
-            <!-- ============ VENTOINHAS ============ -->
-            <TabItem Header="Ventoinhas">
+            <!-- ============ FANS ============ -->
+            <TabItem Header="{l:Tr tab.fans}" Tag="fans">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="400"/>
@@ -102,19 +103,27 @@
                         <StackPanel>
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Modo" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <TextBlock Text="{l:Tr fans.mode}" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <RadioButton x:Name="FirmwareRadio" Content="Firmware (padrão)" GroupName="FanMode"/>
-                                        <RadioButton x:Name="CurveRadio" Content="Curva do AvellCC" GroupName="FanMode"/>
+                                        <RadioButton x:Name="FirmwareRadio" Content="{l:Tr fans.firmware}" GroupName="FanMode" Click="ModeRadio_Click"/>
+                                        <RadioButton x:Name="CurveRadio" Content="{l:Tr fans.curve}" GroupName="FanMode" Click="ModeRadio_Click"/>
                                     </StackPanel>
+                                    <!-- Explains the selected option (firmware vs. curve) -->
+                                    <Border Background="#191B21" CornerRadius="6" Padding="10,8" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <TextBlock x:Name="ModeHelpFirmware" Style="{StaticResource Caption}" TextWrapping="Wrap" Text="{l:Tr fans.help.firmware}"/>
+                                            <TextBlock x:Name="ModeHelpCurve" Style="{StaticResource Caption}" TextWrapping="Wrap" Text="{l:Tr fans.help.curve}" Visibility="Collapsed"/>
+                                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" FontStyle="Italic" Text="{l:Tr fans.help.apply}"/>
+                                        </StackPanel>
+                                    </Border>
                                     <ComboBox x:Name="CurveCombo" DisplayMemberPath="Name" Margin="0,0,0,8" SelectionChanged="CurveCombo_SelectionChanged"/>
-                                    <Button Content="Aplicar modo" HorizontalAlignment="Left" Click="ApplyMode_Click"/>
+                                    <Button Content="{l:Tr fans.apply}" HorizontalAlignment="Left" Click="ApplyMode_Click"/>
                                 </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Editar curva" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <TextBlock Text="{l:Tr fans.edit}" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -122,12 +131,14 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="60"/>
                                         </Grid.ColumnDefinitions>
-                                        <Label Content="Nome"/>
+                                        <Label Content="{l:Tr fans.name}"/>
                                         <TextBox x:Name="NameBox" Grid.Column="1" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
-                                        <Label Grid.Column="2" Content="Histerese °C"/>
+                                        <Label Grid.Column="2" Content="{l:Tr fans.hysteresis}"/>
                                         <TextBox x:Name="HysteresisBox" Grid.Column="3" VerticalContentAlignment="Center" Text="4"/>
                                     </Grid>
-                                    <CheckBox x:Name="SharedCheck" Content="Ventoinhas juntas (maior valor entre CPU e GPU)" IsChecked="True" Margin="0,0,0,8" Click="Editor_Changed"/>
+                                    <CheckBox x:Name="SharedCheck" IsChecked="True" Margin="0,0,0,8" Click="Editor_Changed">
+                                        <TextBlock TextWrapping="Wrap" Text="{l:Tr fans.shared}"/>
+                                    </CheckBox>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition/>
@@ -135,31 +146,30 @@
                                             <ColumnDefinition/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource Caption}" Text="CPU (°C → %)"/>
+                                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr fans.cpuPoints}"/>
                                             <DataGrid x:Name="CpuGrid" CellEditEnding="Grid_CellEditEnding">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="°C" Binding="{Binding Temp}" Width="*"/>
                                                     <DataGridTextColumn Header="%" Binding="{Binding Duty}" Width="*"/>
                                                 </DataGrid.Columns>
                                             </DataGrid>
-                                            <Button Content="+ ponto" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddCpuPoint_Click"/>
+                                            <Button Content="{l:Tr fans.addPoint}" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddCpuPoint_Click"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Style="{StaticResource Caption}" Text="GPU (°C → %)"/>
+                                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr fans.gpuPoints}"/>
                                             <DataGrid x:Name="GpuGrid" CellEditEnding="Grid_CellEditEnding">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="°C" Binding="{Binding Temp}" Width="*"/>
                                                     <DataGridTextColumn Header="%" Binding="{Binding Duty}" Width="*"/>
                                                 </DataGrid.Columns>
                                             </DataGrid>
-                                            <Button Content="+ ponto" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddGpuPoint_Click"/>
+                                            <Button Content="{l:Tr fans.addPoint}" Style="{StaticResource Secondary}" Margin="0,6,0,0" Click="AddGpuPoint_Click"/>
                                         </StackPanel>
                                     </Grid>
-                                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8"
-                                               Text="Regras: temperaturas crescentes, % nunca diminui, último ponto até 90 °C com pelo menos 80 %. Mínimo efetivo 25 % (a ventoinha nunca para). Del remove a linha selecionada."/>
+                                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8" Text="{l:Tr fans.rules}"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="Salvar curva" Click="SaveCurve_Click"/>
-                                        <Button Content="Descartar alterações" Style="{StaticResource Secondary}" Click="ReloadCurve_Click"/>
+                                        <Button Content="{l:Tr fans.save}" Click="SaveCurve_Click"/>
+                                        <Button Content="{l:Tr fans.discard}" Style="{StaticResource Secondary}" Click="ReloadCurve_Click"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -173,7 +183,7 @@
                                 <TextBlock Text="CPU" Margin="0,0,16,0"/>
                                 <Rectangle Width="14" Height="3" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="GPU" Margin="0,0,16,0"/>
-                                <TextBlock Style="{StaticResource Caption}" Text="linhas verticais = temperatura atual · ponto = duty atual" VerticalAlignment="Center"/>
+                                <TextBlock Style="{StaticResource Caption}" Text="{l:Tr fans.legend}" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Canvas x:Name="ChartCanvas" ClipToBounds="True" SizeChanged="ChartCanvas_SizeChanged"/>
                         </DockPanel>
@@ -181,12 +191,12 @@
                 </Grid>
             </TabItem>
 
-            <!-- ============ TECLADO ============ -->
-            <TabItem Header="Teclado">
+            <!-- ============ KEYBOARD ============ -->
+            <TabItem Header="{l:Tr tab.keyboard}" Tag="keyboard">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Iluminação do teclado (4 zonas)" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock Text="{l:Tr kb.title}" FontWeight="SemiBold" Margin="0,0,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="140"/>
@@ -201,59 +211,65 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Label Content="Modo"/>
+                                <Label Content="{l:Tr kb.mode}"/>
                                 <ComboBox x:Name="KbModeCombo" Grid.Column="1" Margin="0,0,0,10" SelectionChanged="KbMode_SelectionChanged">
-                                    <ComboBoxItem Content="Cor única" Tag="static"/>
-                                    <ComboBoxItem Content="Uma cor por zona" Tag="zones"/>
-                                    <ComboBoxItem Content="Efeito" Tag="effect"/>
-                                    <ComboBoxItem Content="Desligado" Tag="off"/>
+                                    <ComboBoxItem Content="{l:Tr kb.mode.static}" Tag="static"/>
+                                    <ComboBoxItem Content="{l:Tr kb.mode.zones}" Tag="zones"/>
+                                    <ComboBoxItem Content="{l:Tr kb.mode.effect}" Tag="effect"/>
+                                    <ComboBoxItem Content="{l:Tr kb.mode.off}" Tag="off"/>
                                 </ComboBox>
 
-                                <Label Grid.Row="1" Content="Cores"/>
+                                <Label Grid.Row="1" Content="{l:Tr kb.colors}"/>
                                 <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Button x:Name="Zone1Button" Width="56" Height="32" Click="Zone_Click" Tag="0" ToolTip="Zona 1 (esquerda) / cor 1"/>
-                                    <Button x:Name="Zone2Button" Width="56" Height="32" Click="Zone_Click" Tag="1" ToolTip="Zona 2 / cor 2"/>
-                                    <Button x:Name="Zone3Button" Width="56" Height="32" Click="Zone_Click" Tag="2" ToolTip="Zona 3 / cor 3"/>
-                                    <Button x:Name="Zone4Button" Width="56" Height="32" Click="Zone_Click" Tag="3" ToolTip="Zona 4 (direita) / cor 4"/>
+                                    <Button x:Name="Zone1Button" Width="56" Height="32" Click="Zone_Click" Tag="0"/>
+                                    <Button x:Name="Zone2Button" Width="56" Height="32" Click="Zone_Click" Tag="1"/>
+                                    <Button x:Name="Zone3Button" Width="56" Height="32" Click="Zone_Click" Tag="2"/>
+                                    <Button x:Name="Zone4Button" Width="56" Height="32" Click="Zone_Click" Tag="3"/>
                                 </StackPanel>
 
-                                <Label Grid.Row="2" Content="Brilho"/>
+                                <Label Grid.Row="2" Content="{l:Tr kb.brightness}"/>
                                 <Slider x:Name="KbBrightness" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="3" Margin="0,0,0,10"/>
 
-                                <Label Grid.Row="3" Content="Efeito"/>
+                                <Label Grid.Row="3" Content="{l:Tr kb.effect}"/>
                                 <ComboBox x:Name="KbEffectCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10"/>
 
-                                <Label Grid.Row="4" Content="Velocidade"/>
+                                <Label Grid.Row="4" Content="{l:Tr kb.speed}"/>
                                 <Slider x:Name="KbSpeed" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="2" Margin="0,0,0,10"/>
 
-                                <Label Grid.Row="5" Content="Direção"/>
+                                <Label Grid.Row="5" Content="{l:Tr kb.direction}"/>
                                 <ComboBox x:Name="KbDirectionCombo" Grid.Row="5" Grid.Column="1" Margin="0,0,0,10">
-                                    <ComboBoxItem Content="Esquerda → direita" Tag="LeftToRight"/>
-                                    <ComboBoxItem Content="Direita → esquerda" Tag="RightToLeft"/>
-                                    <ComboBoxItem Content="Baixo → cima" Tag="BottomToTop"/>
-                                    <ComboBoxItem Content="Cima → baixo" Tag="TopToBottom"/>
+                                    <ComboBoxItem Content="{l:Tr kb.dir.ltr}" Tag="LeftToRight"/>
+                                    <ComboBoxItem Content="{l:Tr kb.dir.rtl}" Tag="RightToLeft"/>
+                                    <ComboBoxItem Content="{l:Tr kb.dir.btt}" Tag="BottomToTop"/>
+                                    <ComboBoxItem Content="{l:Tr kb.dir.ttb}" Tag="TopToBottom"/>
                                 </ComboBox>
                             </Grid>
                             <TextBlock x:Name="KbHint" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                            <Button Content="Aplicar no teclado" HorizontalAlignment="Left" Click="ApplyKeyboard_Click"/>
+                            <Button Content="{l:Tr kb.apply}" HorizontalAlignment="Left" Click="ApplyKeyboard_Click"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </TabItem>
 
-            <!-- ============ CONFIGURAÇÕES ============ -->
-            <TabItem Header="Configurações">
+            <!-- ============ SETTINGS ============ -->
+            <TabItem Header="{l:Tr tab.settings}" Tag="settings">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <CheckBox x:Name="StartupCheck" Content="Abrir o AvellCC na bandeja ao entrar no Windows" Click="StartupCheck_Click"/>
-                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0"
-                                       Text="O serviço AvellCC inicia sozinho com o Windows e controla as ventoinhas mesmo com esta janela fechada."/>
+                            <TextBlock Text="{l:Tr settings.language}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ComboBox x:Name="LanguageCombo" Width="260" HorizontalAlignment="Left" SelectionChanged="LanguageCombo_SelectionChanged"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{l:Tr settings.languageHelp}"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Sobre" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <CheckBox x:Name="StartupCheck" Content="{l:Tr settings.startup}" Click="StartupCheck_Click"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0" Text="{l:Tr settings.startupHelp}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="{l:Tr settings.about}" FontWeight="SemiBold" Margin="0,0,0,6"/>
                             <TextBlock x:Name="AboutText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>

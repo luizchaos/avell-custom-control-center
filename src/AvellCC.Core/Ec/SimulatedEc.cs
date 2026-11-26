@@ -3,9 +3,9 @@ using AvellCC.Core.Fan;
 namespace AvellCC.Core.Ec;
 
 /// <summary>
-/// EC simulado para desenvolver a UI sem hardware nem admin (serviço com --simulate).
-/// Carga em onda (ocioso ↔ carga a cada ~2 min); o firmware simulado segue uma curva simples;
-/// no controle direto (0x751 bit 6) o RPM segue o duty gravado em 0x1804/0x1809 (calibração real).
+/// Simulated EC for developing the UI without hardware or admin rights (service with --simulate).
+/// Load follows a wave (idle ↔ load every ~2 min); the simulated firmware follows a simple curve;
+/// under direct control (0x751 bit 6) the RPM follows the duty written to 0x1804/0x1809 (real calibration).
 /// </summary>
 public sealed class SimulatedEc : IEcAccess
 {
@@ -57,7 +57,7 @@ public sealed class SimulatedEc : IEcAccess
         var duty2 = direct ? _ram.Read(EcAddresses.DirectFan2Duty) / 2.0 : FirmwareDuty(_cpu);
         var cooling = (duty1 + duty2) / 2 / 100.0;
 
-        // Modelo térmico de primeira ordem: equilíbrio sobe com a carga e desce com a ventilação.
+        // First-order thermal model: equilibrium rises with load and falls with airflow.
         var cpuTarget = 45 + 50 * load - 18 * cooling;
         var gpuTarget = 42 + 38 * load - 14 * cooling;
         _cpu += (cpuTarget - _cpu) * Math.Min(1, dt / 8);

@@ -3,8 +3,8 @@ using AvellCC.Core.Ec;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Uma leitura de temperatura, ventoinhas e nível da curva do firmware direto do EC (≈ 8 acessos WMI, ~1 s).
-/// Level / LevelTemp = 0x460 / 0x461 (nível atual da ventoinha 1 e seu limiar).
+/// One reading of temperatures, fans and the firmware curve level, straight from the EC (≈ 8 WMI accesses, ~1 s).
+/// Level / LevelTemp = 0x460 / 0x461 (fan 1's current firmware level and its threshold).
 /// </summary>
 public readonly record struct FanSample(DateTimeOffset Time, int CpuTemp, int GpuTemp, int Fan1, int Fan2, int Level = 0, int LevelTemp = 0)
 {
@@ -19,7 +19,7 @@ public readonly record struct FanSample(DateTimeOffset Time, int CpuTemp, int Gp
 }
 
 /// <summary>
-/// Regras de segurança durante o teste de uma curva. Qualquer violação leva à restauração automática do original.
+/// Safety rules while trialling a curve from the CLI. Any violation triggers an automatic restore of the original.
 /// </summary>
 public sealed class FanWatchdog(int cpuLimit = 92, int gpuLimit = 87, int stalledTemp = 65, TimeSpan? stalledFor = null)
 {
@@ -29,23 +29,23 @@ public sealed class FanWatchdog(int cpuLimit = 92, int gpuLimit = 87, int stalle
     public int CpuLimit => cpuLimit;
     public int GpuLimit => gpuLimit;
 
-    /// <summary>Retorna o motivo para abortar, ou null se está tudo dentro dos limites.</summary>
+    /// <summary>Returns the reason to abort, or null if everything is within limits.</summary>
     public string? Check(FanSample s, double expectedCpuDuty, double expectedGpuDuty)
     {
-        if (s.CpuTemp >= cpuLimit) return $"CPU em {s.CpuTemp} °C (limite {cpuLimit} °C).";
-        if (s.GpuTemp >= gpuLimit) return $"GPU em {s.GpuTemp} °C (limite {gpuLimit} °C).";
+        if (s.CpuTemp >= cpuLimit) return $"CPU at {s.CpuTemp} °C (limit {cpuLimit} °C).";
+        if (s.GpuTemp >= gpuLimit) return $"GPU at {s.GpuTemp} °C (limit {gpuLimit} °C).";
 
-        // Leitura absurda (0 ou 255) = sensor/EC em estado estranho
-        if (s.CpuTemp is 0 or 255 || s.GpuTemp is 255) return $"Leitura de temperatura inválida (CPU {s.CpuTemp}, GPU {s.GpuTemp}).";
+        // Absurd reading (0 or 255) = sensor/EC in a strange state
+        if (s.CpuTemp is 0 or 255 || s.GpuTemp is 255) return $"Invalid temperature reading (CPU {s.CpuTemp}, GPU {s.GpuTemp}).";
 
-        // Ventoinha parada com calor e com a curva pedindo rotação
+        // Fan stopped while hot and the curve asks for rotation
         var hot = s.CpuTemp >= stalledTemp || s.GpuTemp >= stalledTemp;
         var shouldSpin = expectedCpuDuty > 0 || expectedGpuDuty > 0;
         var stalled = hot && shouldSpin && (s.Fan1 == 0 || s.Fan2 == 0);
         if (!stalled) { _stalledSince = null; return null; }
         _stalledSince ??= s.Time;
         return s.Time - _stalledSince >= _stalledFor
-            ? $"Ventoinha parada por {_stalledFor.TotalSeconds:0} s com CPU {s.CpuTemp} °C / GPU {s.GpuTemp} °C."
+            ? $"Fan stopped for {_stalledFor.TotalSeconds:0} s with CPU {s.CpuTemp} °C / GPU {s.GpuTemp} °C."
             : null;
     }
 }

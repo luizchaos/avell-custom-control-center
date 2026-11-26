@@ -31,10 +31,10 @@ public sealed class OfficeFanServiceTests : IDisposable
     public void Repository_curves_are_valid(string file) => OfficeFanCurve.Load(Path.Combine(CurvesDir, file));
 
     [Theory]
-    [InlineData(new[] { 30, 35, 40, 50 }, "exatamente 5")]
-    [InlineData(new[] { 30, 35, 40, 50, 110 }, "fora de 0–100")]
-    [InlineData(new[] { 30, 50, 40, 60, 80 }, "não pode diminuir")]
-    [InlineData(new[] { 30, 35, 40, 50, 55 }, "pelo menos 60")]
+    [InlineData(new[] { 30, 35, 40, 50 }, "exactly 5")]
+    [InlineData(new[] { 30, 35, 40, 50, 110 }, "outside 0–100")]
+    [InlineData(new[] { 30, 50, 40, 60, 80 }, "must not decrease")]
+    [InlineData(new[] { 30, 35, 40, 50, 55 }, "at least 60")]
     public void Invalid_curves_are_rejected(int[] duties, string expected)
     {
         var ex = Assert.Throws<FanCurveException>(new OfficeFanCurve { Duties = duties }.Validate);

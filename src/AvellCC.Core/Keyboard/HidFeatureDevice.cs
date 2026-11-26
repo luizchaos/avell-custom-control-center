@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace AvellCC.Core.Keyboard;
 
-/// <summary>Canal de feature reports HID. Abstraído para testar o protocolo sem hardware.</summary>
+/// <summary>HID feature-report channel. Abstracted so the protocol can be tested without hardware.</summary>
 public interface IFeatureTransport : IDisposable
 {
     void SetFeature(byte[] report);
@@ -13,8 +13,8 @@ public interface IFeatureTransport : IDisposable
 }
 
 /// <summary>
-/// Dispositivo HID aberto por VID + usage page (ex.: 048D + 0xFF12 = teclado 4 zonas).
-/// Não precisa de administrador.
+/// HID device opened by VID + usage page (e.g. 048D + 0xFF12 = 4-zone keyboard).
+/// Does not require administrator rights.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class HidFeatureDevice : IFeatureTransport
@@ -40,7 +40,7 @@ public sealed class HidFeatureDevice : IFeatureTransport
         {
             if (path.IndexOf($"vid_{vendorId:x4}", StringComparison.OrdinalIgnoreCase) < 0) continue;
 
-            // 1º: só metadados (acesso 0), para não abrir em escrita a interface errada
+            // First: metadata only (access 0), so we never open the wrong interface for writing
             using (var probe = Native.CreateFile(path, 0, Native.FileShareReadWrite, IntPtr.Zero, Native.OpenExisting, 0, IntPtr.Zero))
             {
                 if (probe.IsInvalid || ReadCaps(probe) is not { } caps || caps.UsagePage != usagePage) continue;
@@ -48,22 +48,22 @@ public sealed class HidFeatureDevice : IFeatureTransport
 
             var handle = Native.CreateFile(path, Native.GenericRead | Native.GenericWrite, Native.FileShareReadWrite,
                                            IntPtr.Zero, Native.OpenExisting, 0, IntPtr.Zero);
-            if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error(), $"Não foi possível abrir {path}");
+            if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not open {path}");
 
             var attributes = new Native.HIDD_ATTRIBUTES { Size = Marshal.SizeOf<Native.HIDD_ATTRIBUTES>() };
             Native.HidD_GetAttributes(handle, ref attributes);
             var finalCaps = ReadCaps(handle)!.Value;
             return new HidFeatureDevice(handle, path, attributes.ProductID, attributes.VersionNumber, finalCaps.FeatureReportByteLength);
         }
-        throw new InvalidOperationException($"Dispositivo HID VID {vendorId:X4} com usage page 0x{usagePage:X4} não encontrado.");
+        throw new InvalidOperationException($"HID device VID {vendorId:X4} with usage page 0x{usagePage:X4} not found.");
     }
 
     public void SetFeature(byte[] report)
     {
         if (report.Length != FeatureReportLength)
-            throw new ArgumentException($"Report deve ter {FeatureReportLength} bytes, tem {report.Length}.", nameof(report));
+            throw new ArgumentException($"Report must be {FeatureReportLength} bytes, got {report.Length}.", nameof(report));
         if (!Native.HidD_SetFeature(_handle, report, report.Length))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_SetFeature falhou.");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_SetFeature failed.");
     }
 
     public byte[] GetFeature(byte reportId, int length)
@@ -71,7 +71,7 @@ public sealed class HidFeatureDevice : IFeatureTransport
         var buffer = new byte[length];
         buffer[0] = reportId;
         if (!Native.HidD_GetFeature(_handle, buffer, buffer.Length))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_GetFeature falhou.");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_GetFeature failed.");
         return buffer;
     }
 
@@ -102,7 +102,7 @@ public sealed class HidFeatureDevice : IFeatureTransport
                 var buffer = Marshal.AllocHGlobal(required);
                 try
                 {
-                    Marshal.WriteInt32(buffer, IntPtr.Size == 8 ? 8 : 6); // cbSize de SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                    Marshal.WriteInt32(buffer, IntPtr.Size == 8 ? 8 : 6); // cbSize of SP_DEVICE_INTERFACE_DETAIL_DATA_W
                     if (Native.SetupDiGetDeviceInterfaceDetail(set, ref data, buffer, required, out _, IntPtr.Zero))
                         result.Add(Marshal.PtrToStringUni(buffer + 4)!);
                 }

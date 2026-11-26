@@ -4,18 +4,18 @@ using AvellCC.Core.Safety;
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Controle direto (legado) das ventoinhas, como no tuxedo-drivers para EC Uniwill sem controle universal
-/// (0x78E bit 6 = 0, caso deste notebook):
-///   ligar    → grava o duty em 0x1804/0x1809, liga 0x751 bit 6 ("full fan mode") e regrava o duty algumas vezes
-///              logo em seguida, antes de o EC completar a aceleração para o máximo;
-///   manter   → regrava o duty periodicamente (quem chama: o loop do serviço / do teste);
-///   desligar → devolve 0x751 ao valor original. O EC volta à curva interna.
-/// Falha segura: se o processo morrer com o bit 6 ligado, o modo "full fan" tende a acelerar as ventoinhas, não a pará-las.
+/// Direct (legacy) fan control, as tuxedo-drivers does for Uniwill ECs without universal fan control
+/// (0x78E bit 6 = 0, which is this laptop):
+///   enable  → write the duty to 0x1804/0x1809, set 0x751 bit 6 ("full fan mode"), then rewrite the duty a few times
+///             right away, before the EC finishes ramping up to maximum;
+///   keep    → rewrite the duty periodically (the caller does this: service loop / CLI);
+///   disable → restore 0x751 to its original value. The EC goes back to its internal curve.
+/// Fail-safe: if the process dies with bit 6 set, "full fan mode" tends to speed the fans up, not stop them.
 /// </summary>
 public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, Func<MachineInfo> machine, Func<string[]> vendorRunning)
 {
     public const string BackupGroup = "ec-direct";
-    /// <summary>Mínimo com a ventoinha girando (tuxedo: FAN_ON_MIN_SPEED_PERCENT). Nunca gravamos 0.</summary>
+    /// <summary>Minimum with the fan spinning (tuxedo: FAN_ON_MIN_SPEED_PERCENT). We never write 0.</summary>
     public const int MinPercent = 25;
 
     public static readonly ushort[] TrackedRegisters = [EcAddresses.FanControl, EcAddresses.DirectFan1Duty, EcAddresses.DirectFan2Duty];
@@ -35,7 +35,7 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
     public static byte ToRaw(int percent)
     {
         if (percent is < MinPercent or > 100)
-            throw new ArgumentOutOfRangeException(nameof(percent), $"Duty direto entre {MinPercent} e 100 % (é {percent}).");
+            throw new ArgumentOutOfRangeException(nameof(percent), $"Direct duty must be between {MinPercent} and 100 % (got {percent}).");
         return (byte)(percent * 2);
     }
 
@@ -45,21 +45,21 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         var first = ReadTracked();
         var second = ReadTracked();
         if (first[EcAddresses.FanControl] != second[EcAddresses.FanControl])
-            throw new InvalidOperationException("0x751 mudou entre duas leituras: outro processo está escrevendo no EC.");
+            throw new InvalidOperationException("0x751 changed between two reads: another process is writing to the EC.");
         var snapshot = EcRegisterSnapshot.From(first, machine(), vendorRunning(), "AvellCC/original");
         var created = store.TryCreateOriginal(snapshot);
         return (created ? snapshot : store.LoadOriginal(), created);
     }
 
     /// <param name="takeOver">
-    /// true = aceita o bit 6 já ligado. É o caso do serviço reiniciando depois de uma queda, com o controle direto
-    /// que ele mesmo deixou ativo. Só é seguro com o vendor parado, e isso é conferido antes.
+    /// true = accept bit 6 already set. This is the service restarting after a crash, taking back the direct control
+    /// it left active. Only safe with the vendor app stopped, which is checked first.
     /// </param>
     public void Enable(int fan1Percent, int fan2Percent, bool takeOver = false)
     {
-        var running = vendorRunning();                 // Regra 1
+        var running = vendorRunning();                 // Rule 1
         if (running.Length > 0) throw new VendorRunningException(running);
-        var (original, _) = EnsureOriginalBackup();    // Regra 2
+        var (original, _) = EnsureOriginalBackup();    // Rule 2
         if (!_snapshotSaved)
         {
             store.SaveSnapshot(EcRegisterSnapshot.From(ReadTracked(), machine(), vendorRunning(), "AvellCC/before-direct"), "before-direct");
@@ -68,16 +68,16 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
 
         var current = ec.Read(EcAddresses.FanControl);
         if ((current & EcAddresses.FullFanModeBit) != 0 && !takeOver)
-            throw new InvalidOperationException($"0x751 já está com o bit 6 ligado (0x{current:X2}): outro controle ativo?");
+            throw new InvalidOperationException($"0x751 already has bit 6 set (0x{current:X2}): is another controller active?");
         _originalFanControl = original.Values()[EcAddresses.FanControl];
 
         try
         {
             SetDuty(fan1Percent, fan2Percent);
             ec.Write(EcAddresses.FanControl, (byte)(current | EcAddresses.FullFanModeBit));
-            for (var i = 0; i < 10; i++) { SetDuty(fan1Percent, fan2Percent); Thread.Sleep(10); }   // antes do ramp-up completo
+            for (var i = 0; i < 10; i++) { SetDuty(fan1Percent, fan2Percent); Thread.Sleep(10); }   // before full ramp-up
             if ((ec.Read(EcAddresses.FanControl) & EcAddresses.FullFanModeBit) == 0)
-                throw new InvalidOperationException("Read-back divergente em 0x751.");
+                throw new InvalidOperationException("Read-back mismatch at 0x751.");
         }
         catch
         {
@@ -87,8 +87,8 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
     }
 
     /// <summary>
-    /// Liga SÓ o 0x751 bit 6, sem gravar duty: é exatamente o "Fan Boost" do app da Avell
-    /// (MyFanManager_Intel.SetFanBoost: 0x751 |= 0x40). Usado para medir o máximo do firmware. Desligar com <see cref="Disable"/>.
+    /// Sets ONLY 0x751 bit 6, without writing a duty: exactly the vendor app's "Fan Boost"
+    /// (MyFanManager_Intel.SetFanBoost: 0x751 |= 0x40). Used to measure the firmware maximum. Turn off with <see cref="Disable"/>.
     /// </summary>
     public void EnableFanBoostOnly()
     {
@@ -97,12 +97,12 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         var (original, _) = EnsureOriginalBackup();
         var current = ec.Read(EcAddresses.FanControl);
         if ((current & EcAddresses.FullFanModeBit) != 0)
-            throw new InvalidOperationException($"0x751 já está com o bit 6 ligado (0x{current:X2}).");
+            throw new InvalidOperationException($"0x751 already has bit 6 set (0x{current:X2}).");
         _originalFanControl = original.Values()[EcAddresses.FanControl];
         ec.Write(EcAddresses.FanControl, (byte)(current | EcAddresses.FullFanModeBit));
     }
 
-    /// <summary>Grava o duty das duas ventoinhas (chamar periodicamente enquanto ativo).</summary>
+    /// <summary>Writes both fans' duty (call periodically while active).</summary>
     public void SetDuty(int fan1Percent, int fan2Percent)
     {
         var a = ToRaw(fan1Percent);
@@ -111,7 +111,7 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         ec.Write(EcAddresses.DirectFan2Duty, b);
     }
 
-    /// <summary>Devolve 0x751 ao valor original (sem o bit 6) e confere. Idempotente.</summary>
+    /// <summary>Restores 0x751 to its original value (without bit 6) and verifies. Idempotent.</summary>
     public void Disable()
     {
         var target = _originalFanControl ?? (store.HasOriginal ? store.LoadOriginal().Values()[EcAddresses.FanControl] : (byte)0x00);
@@ -122,7 +122,7 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
             if (ec.Read(EcAddresses.FanControl) == target) { _originalFanControl = null; return; }
             Thread.Sleep(50);
         }
-        throw new InvalidOperationException($"Não foi possível devolver 0x751 a 0x{target:X2}.");
+        throw new InvalidOperationException($"Could not restore 0x751 to 0x{target:X2}.");
     }
 
     private Dictionary<ushort, byte> ReadTracked() => TrackedRegisters.ToDictionary(a => a, ec.Read);

@@ -1,11 +1,11 @@
 namespace AvellCC.Core.Fan;
 
-/// <summary>Curvas que acompanham o app (gravadas em %ProgramData%\AvellCC\curves na primeira execução do serviço).</summary>
+/// <summary>Curves shipped with the app (written to %ProgramData%\AvellCC\curves on the service's first run).</summary>
 public static class CurvePresets
 {
     private static CurvePoint[] P(params (int T, int D)[] points) => points.Select(p => new CurvePoint(p.T, p.D)).ToArray();
 
-    /// <summary>Validada no hardware em 2026-11-26 (teste 7).</summary>
+    /// <summary>Validated on the hardware on 2026-11-26 (test 7).</summary>
     public static readonly FanCurve Balanced = new()
     {
         Name = "balanced", Hysteresis = 4, Shared = true,
@@ -13,7 +13,7 @@ public static class CurvePresets
         Gpu = P((45, 25), (55, 32), (65, 45), (72, 70), (82, 100)),
     };
 
-    /// <summary>Mais silenciosa: espera mais para acelerar. Ainda chega a 100 % antes de 90 °C.</summary>
+    /// <summary>Quieter: waits longer before speeding up. Still reaches 100 % below 90 °C.</summary>
     public static readonly FanCurve Silent = new()
     {
         Name = "silent", Hysteresis = 5, Shared = true,
@@ -21,7 +21,7 @@ public static class CurvePresets
         Gpu = P((50, 25), (62, 30), (70, 45), (78, 75), (85, 100)),
     };
 
-    /// <summary>Agressiva: prioriza temperatura e desempenho sustentado.</summary>
+    /// <summary>Aggressive: favors temperature and sustained performance.</summary>
     public static readonly FanCurve Performance = new()
     {
         Name = "performance", Hysteresis = 3, Shared = true,
@@ -30,8 +30,8 @@ public static class CurvePresets
     };
 
     /// <summary>
-    /// 100 % sempre (duty 200, o máximo que o EC aceita; 5543/5590 RPM medidos). Equivale ao "Fan Boost" do vendor,
-    /// confirmado em 2026-11-26: o Fan Boost faz o próprio EC gravar duty 200 e dá 5543/5586 RPM.
+    /// 100 % always (duty 200, the most the EC accepts; 5543/5590 RPM measured). Equivalent to the vendor's "Fan Boost",
+    /// confirmed on 2026-11-26: Fan Boost makes the EC itself write duty 200 and gives 5543/5586 RPM.
     /// </summary>
     public static readonly FanCurve Max = new()
     {

@@ -1,15 +1,15 @@
 namespace AvellCC.Core.Fan;
 
 /// <summary>
-/// Relação duty → RPM medida neste notebook (ventoinha 1, controle direto, 2026-11-26, `fan curve run`).
-/// Não é linear: ~68 RPM/% perto de 30 % e ~45 RPM/% perto de 100 %. Máximo ≈ 5540 RPM (fan2 ≈ 5590).
-/// Usada só para estimativas na UI/CLI; o controle é sempre por duty.
+/// Duty → RPM relation measured on this laptop (fan 1, direct control, 2026-11-26, `fan curve run`).
+/// Not linear: ~68 RPM/% near 30 % and ~45 RPM/% near 100 %. Maximum ≈ 5540 RPM (fan 2 ≈ 5590).
+/// Only used for estimates in the UI/CLI; control is always by duty.
 /// </summary>
 public static class FanCalibration
 {
     private static readonly (int Duty, int Rpm)[] Points =
     [
-        (25, 1700), // extrapolado (mínimo do controle direto)
+        (25, 1700), // extrapolated (direct-control minimum)
         (31, 2043), (36, 2433), (44, 2894), (50, 3240), (60, 3648), (70, 4138),
         (76, 4515), (85, 4900), (91, 5133), (94, 5265), (97, 5390), (100, 5543),
     ];

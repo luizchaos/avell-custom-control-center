@@ -21,12 +21,12 @@ public sealed class FanCurveTests : IDisposable
     public void Repository_trial_curve_is_valid() => FanCurve.Load(RepoCurve);
 
     [Theory]
-    [InlineData(new[] { 40, 60 }, new[] { 30, 20 }, "diminuir")]          // duty desce
-    [InlineData(new[] { 40, 40 }, new[] { 30, 90 }, "crescentes")]         // temperatura repetida
-    [InlineData(new[] { 40, 95 }, new[] { 30, 100 }, "até 90")]            // último ponto quente demais
-    [InlineData(new[] { 40, 85 }, new[] { 30, 60 }, "pelo menos 80")]      // não ventila forte no fim
-    [InlineData(new[] { 70, 80 }, new[] { 30, 100 }, "cobrir")]            // degraus < 1 °C
-    [InlineData(new[] { 10, 80 }, new[] { 30, 100 }, "abaixo de 20")]
+    [InlineData(new[] { 40, 60 }, new[] { 30, 20 }, "must not decrease")]          // duty desce
+    [InlineData(new[] { 40, 40 }, new[] { 30, 90 }, "strictly increasing")]         // temperatura repetida
+    [InlineData(new[] { 40, 95 }, new[] { 30, 100 }, "at or below 90")]            // último ponto quente demais
+    [InlineData(new[] { 40, 85 }, new[] { 30, 60 }, "at least 80")]      // não ventila forte no fim
+    [InlineData(new[] { 70, 80 }, new[] { 30, 100 }, "span at least")]            // degraus < 1 °C
+    [InlineData(new[] { 10, 80 }, new[] { 30, 100 }, "below 20")]
     public void Invalid_curves_are_rejected(int[] temps, int[] duties, string expected)
     {
         var curve = Curve(temps.Zip(duties).ToArray());

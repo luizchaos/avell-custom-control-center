@@ -4,7 +4,7 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- O teclado (HID) não exige admin; os comandos de EC (WMI) exigem e falham com mensagem clara. -->
+        <!-- Keyboard (HID) commands do not need admin; EC (WMI) commands do, and fail with a clear message. -->
         <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>

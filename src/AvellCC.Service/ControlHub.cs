@@ -18,7 +18,7 @@ public sealed record HubOptions(bool Simulate)
 }
 
 /// <summary>
-/// Dono único do hardware dentro do serviço: loop das ventoinhas, teclado, configurações e comandos da UI.
+/// Single owner of the hardware inside the service: fan loop, keyboard, settings and UI commands.
 /// </summary>
 public sealed class ControlHub : IDisposable
 {
@@ -60,12 +60,12 @@ public sealed class ControlHub : IDisposable
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "settings.json inválido; usando o padrão (firmware).");
+            _log.LogError(ex, "Invalid settings.json; using defaults (firmware).");
             _settings = new AppSettings();
         }
         ApplyFanMode(_settings);
         ApplyKeyboard(_settings.Keyboard);
-        _log.LogInformation("AvellCC iniciado ({Machine}). Ventoinhas: {Mode} {Curve}. Simulação: {Sim}",
+        _log.LogInformation("AvellCC started ({Machine}). Fans: {Mode} {Curve}. Simulation: {Sim}",
                             _machine, _settings.FanMode, _settings.CurveName, _options.Simulate);
     }
 
@@ -73,30 +73,30 @@ public sealed class ControlHub : IDisposable
     {
         var status = _loop.Tick();
         if (status.State is LoopState.Error or LoopState.Emergency)
-            _log.LogWarning("Ventoinhas: {State} — {Message}", status.State, status.Message);
+            _log.LogWarning("Fans: {State} — {Message}", status.State, status.Message);
         return status;
     }
 
     public void Suspend()
     {
-        _log.LogInformation("Suspensão: devolvendo as ventoinhas ao firmware.");
+        _log.LogInformation("Suspend: handing the fans back to the firmware.");
         _loop.Suspend();
     }
 
     public void Resume()
     {
-        _log.LogInformation("Retomada: reassumindo configurações.");
+        _log.LogInformation("Resume: re-applying settings.");
         _loop.Resume();
         ApplyKeyboard(_settings.Keyboard);
     }
 
     public void Shutdown()
     {
-        _log.LogInformation("Parando: devolvendo as ventoinhas ao firmware.");
+        _log.LogInformation("Stopping: handing the fans back to the firmware.");
         _loop.Shutdown();
     }
 
-    /// <summary>Comandos da UI (pipe).</summary>
+    /// <summary>UI commands (pipe).</summary>
     public Task<object?> HandleAsync(string command, JsonElement? args, CancellationToken cancel)
     {
         object? result = command switch
@@ -108,7 +108,7 @@ public sealed class ControlHub : IDisposable
             Protocol.Commands.SaveCurve => SaveCurve(Arg<FanCurve>(args)),
             Protocol.Commands.SetFanMode => SetFanMode(Arg<SetFanModeArgs>(args)),
             Protocol.Commands.SetKeyboard => SetKeyboard(Arg<KeyboardSettings>(args)),
-            _ => throw new ArgumentException($"Comando desconhecido: {command}"),
+            _ => throw new ArgumentException($"Unknown command: {command}"),
         };
         return Task.FromResult(result);
     }
@@ -116,10 +116,10 @@ public sealed class ControlHub : IDisposable
     private object? SaveCurve(FanCurve curve)
     {
         _store.SaveCurve(curve);
-        _log.LogInformation("Curva '{Name}' salva.", curve.Name);
+        _log.LogInformation("Curve '{Name}' saved.", curve.Name);
         lock (_settingsLock)
         {
-            if (_settings.FanMode == "curve" && _settings.CurveName == curve.Name) _loop.UseCurve(curve);   // edição da curva ativa
+            if (_settings.FanMode == "curve" && _settings.CurveName == curve.Name) _loop.UseCurve(curve);   // editing the active curve
         }
         return null;
     }
@@ -130,10 +130,10 @@ public sealed class ControlHub : IDisposable
         {
             var next = _settings with { FanMode = a.Mode, CurveName = a.CurveName ?? _settings.CurveName };
             next.Validate();
-            ApplyFanMode(next);          // valida a curva (lança antes de salvar)
+            ApplyFanMode(next);          // validates the curve (throws before saving)
             _store.Save(next);
             _settings = next;
-            _log.LogInformation("Ventoinhas: {Mode} {Curve}", next.FanMode, next.CurveName);
+            _log.LogInformation("Fans: {Mode} {Curve}", next.FanMode, next.CurveName);
             return next;
         }
     }
@@ -168,12 +168,12 @@ public sealed class ControlHub : IDisposable
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Falha ao aplicar o teclado.");
+            _log.LogError(ex, "Failed to apply keyboard settings.");
         }
     }
 
     private static T Arg<T>(JsonElement? args) =>
-        args is { } a ? a.Deserialize<T>(Protocol.Json) ?? throw new ArgumentException("Argumentos vazios.") : throw new ArgumentException("Faltam argumentos.");
+        args is { } a ? a.Deserialize<T>(Protocol.Json) ?? throw new ArgumentException("Empty arguments.") : throw new ArgumentException("Missing arguments.");
 
     private static MachineInfo ReadMachine()
     {
@@ -196,7 +196,7 @@ public sealed class ControlHub : IDisposable
 
     public void Dispose() => (_ec as IDisposable)?.Dispose();
 
-    /// <summary>Teclado falso do modo simulação: só registra os pacotes.</summary>
+    /// <summary>Fake keyboard for simulation mode: only logs the packets.</summary>
     private sealed class LoggingTransport(ILogger log) : IFeatureTransport
     {
         public void SetFeature(byte[] report) => log.LogInformation("[sim] HID {Report}", Convert.ToHexString(report));

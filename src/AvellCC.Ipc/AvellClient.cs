@@ -7,7 +7,7 @@ using AvellCC.Core.Keyboard;
 
 namespace AvellCC.Ipc;
 
-/// <summary>Cliente do serviço (usado pela UI). Mantém uma conexão e reconecta se cair. Thread-safe.</summary>
+/// <summary>Service client (used by the UI). Keeps one connection and reconnects if it drops. Thread-safe.</summary>
 public sealed class AvellClient(string pipeName = Protocol.PipeName, int connectTimeoutMs = 1500) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -38,14 +38,14 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
                     await EnsureConnectedAsync(cancel).ConfigureAwait(false);
                     var request = new Request(++_nextId, command, args is null ? null : JsonSerializer.SerializeToElement(args, Protocol.Json));
                     await _writer!.WriteLineAsync(JsonSerializer.Serialize(request, Protocol.Json).AsMemory(), cancel).ConfigureAwait(false);
-                    var line = await _reader!.ReadLineAsync(cancel).ConfigureAwait(false) ?? throw new IOException("Conexão encerrada pelo serviço.");
+                    var line = await _reader!.ReadLineAsync(cancel).ConfigureAwait(false) ?? throw new IOException("Connection closed by the service.");
                     var response = JsonSerializer.Deserialize<Response>(line, Protocol.Json) ?? throw new IOException("Resposta vazia.");
-                    if (!response.Ok) throw new ServiceException(response.Error ?? "Erro desconhecido no serviço.");
+                    if (!response.Ok) throw new ServiceException(response.Error ?? "Unknown service error.");
                     return response.Result is { } r ? r.Deserialize<T>(Protocol.Json)! : default!;
                 }
                 catch (IOException) when (attempt == 0)
                 {
-                    Disconnect();   // conexão velha: tenta uma vez de novo
+                    Disconnect();   // stale connection: retry once
                 }
                 catch (Exception ex) when (ex is IOException or TimeoutException)
                 {
@@ -93,4 +93,4 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
 }
 
 public sealed class ServiceUnavailableException(Exception inner)
-    : Exception("Serviço AvellCC indisponível. Ele está instalado e rodando?", inner);
+    : Exception("AvellCC service unavailable. Is it installed and running?", inner);

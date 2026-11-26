@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 namespace AvellCC.Ipc;
 
 /// <summary>
-/// Protocolo UI ↔ serviço: uma linha JSON por mensagem, sobre named pipe local.
-/// O serviço é o único dono do hardware; a UI só pede.
+/// UI ↔ service protocol: one JSON line per message over a local named pipe.
+/// The service is the only owner of the hardware; the UI only asks.
 /// </summary>
 public static class Protocol
 {
@@ -38,5 +38,5 @@ public sealed record SetFanModeArgs(string Mode, string? CurveName);
 
 public sealed record ServiceInfo(int ProtocolVersion, string Version, bool Simulated, string Machine);
 
-/// <summary>Erro devolvido pelo serviço (validação, hardware...).</summary>
+/// <summary>Error returned by the service (validation, hardware...).</summary>
 public sealed class ServiceException(string message) : Exception(message);
