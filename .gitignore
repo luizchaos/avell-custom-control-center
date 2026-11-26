@@ -5,3 +5,6 @@ obj/
 TestResults/
 # Diagnostic reports contain machine data
 diag-output/
+# Installer build output (tools\build-msi.ps1)
+artifacts/
+dist/

@@ -31,7 +31,8 @@ The vendor app (`GCUBridge` + `GCUService.exe` + `ControlCenterU.exe`) writes to
 (`0x751`, fan tables, `0x7A5`) and to the **same keyboard HID device**, and re-applies its own settings on
 AC/battery changes, resume from sleep and Fn keys. With both running, each undoes the other.
 
-`tools/install.ps1` stops and disables `GCUBridge`. To do it by hand (elevated PowerShell):
+The MSI installer and `tools/install.ps1` stop and disable `GCUBridge` (uninstalling the MSI sets it back to automatic).
+To do it by hand (elevated PowerShell):
 
 ```powershell
 Get-Process ControlCenterU, OSDTpDetect, EnableTray -ErrorAction SilentlyContinue | Stop-Process -Force
