@@ -140,6 +140,10 @@ static int Ec(string[] args, bool rawBytes)
             var directDuration = args.Length > 4 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 60;
             return DirectTrial(ec, direct, directStore, percent, TimeSpan.FromSeconds(directDuration), rawBytes);
 
+        case ["fan", "curve", "run", var runCurvePath, ..]:
+            var runSeconds = args.Length > 4 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
+            return CurveRun(ec, direct, directStore, FanCurve.Load(runCurvePath), runSeconds, rawBytes);
+
         case ["fan", "direct", "off", "--yes"]:
             direct.Disable();
             Console.WriteLine("0x751 devolvido ao original (sem full fan mode).");
@@ -196,6 +200,65 @@ static int DirectTrial(IEcAccess ec, DirectFanService direct, EcRegisterBackupSt
         Monitor(ec, TimeSpan.Zero, null, null, rawBytes, CancellationToken.None);
     }
     return abort is null ? 0 : 5;
+}
+
+/// <summary>Loop de controle em primeiro plano: é o núcleo do futuro serviço. Ctrl+C devolve o controle ao firmware.</summary>
+static int CurveRun(IEcAccess ec, DirectFanService direct, EcRegisterBackupStore store, FanCurve curve, int seconds, bool rawBytes)
+{
+    var controller = new FanCurveController(curve);
+    Console.WriteLine($"Curva '{curve.Name}' (histerese {curve.Hysteresis} °C, {(curve.Shared ? "ventoinhas juntas" : "CPU→fan1, GPU→fan2")}).");
+    Console.WriteLine($"CPU: {string.Join("  ", curve.Cpu.Select(p => $"{p.Temp}°C→{p.Duty}%"))}");
+    Console.WriteLine($"GPU: {string.Join("  ", curve.Gpu.Select(p => $"{p.Temp}°C→{p.Duty}%"))}");
+    Console.WriteLine(seconds > 0 ? $"Rodando por {seconds} s." : "Rodando até Ctrl+C.");
+
+    var (_, created) = direct.EnsureOriginalBackup();
+    if (created) Console.WriteLine($"Backup original criado: {store.OriginalPath}");
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    var end = seconds > 0 ? DateTimeOffset.Now.AddSeconds(seconds) : DateTimeOffset.MaxValue;
+    var writes = 0;
+    try
+    {
+        var first = controller.Step(FanSample.Read(ec));
+        direct.Enable(first.Fan1, first.Fan2);
+        writes++;
+        Console.WriteLine($"Controle direto ligado: {first.Fan1}% / {first.Fan2}%");
+
+        while (!cts.IsCancellationRequested && DateTimeOffset.Now < end)
+        {
+            cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(1));
+            if (cts.IsCancellationRequested) break;
+
+            var s = FanSample.Read(ec);
+            var d = controller.Step(s);
+
+            if ((ec.Read(EcAddresses.FanControl) & EcAddresses.FullFanModeBit) == 0)
+            {
+                Console.WriteLine("!! 0x751 perdeu o bit 6 (tecla Fn / BIOS?). Reassumindo.");
+                direct.Enable(d.Fan1, d.Fan2);
+                writes++;
+            }
+            else if (d.ShouldWrite)
+            {
+                direct.SetDuty(d.Fan1, d.Fan2);
+                writes++;
+            }
+
+            var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C (ef {d.CpuEffective,5:0.#})  GPU {s.GpuTemp,3} °C (ef {d.GpuEffective,5:0.#})  " +
+                       $"→ {d.Fan1,3}% / {d.Fan2,3}%{(d.ShouldWrite ? "*" : " ")}  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
+            if (d.Reason is not null) line += $"  !! {d.Reason}";
+            if (rawBytes) line += $"  duty {ec.Read(EcAddresses.DirectFan1Duty)}/{ec.Read(EcAddresses.DirectFan2Duty)}";
+            Console.WriteLine(line);
+        }
+    }
+    finally
+    {
+        Console.WriteLine($"\nEncerrando ({writes} gravações). Devolvendo o controle ao firmware...");
+        direct.Disable();
+        PrintDirect(direct.ReadState());
+    }
+    return 0;
 }
 
 static void PrintOffice(OfficeState s)
@@ -379,6 +442,7 @@ static int Usage()
           avellcc fan direct show                                               (admin, só leitura)
           avellcc fan direct trial <percent 25-100> [segundos] [--raw]          (admin, GRAVA, sempre restaura)
           avellcc fan direct off --yes                                          (admin, desliga o controle direto)
+          avellcc fan curve run <curva.json> [segundos] [--raw]                 (admin, aplica a curva; Ctrl+C devolve ao firmware)
           avellcc fan trial <curva.json> ...   (tabela 0xF00: ignorada por este EC, só referência)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info

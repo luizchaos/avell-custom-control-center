@@ -88,6 +88,30 @@ Start-Service GCUBridge
 > nenhuma cópia, nem no registro (`HKLM\SOFTWARE\OEM\GamingCenter2\MyFan3`) nem em disco.
 > **O nosso backup do EC é a única cópia da curva original**: guarde também uma cópia fora do notebook.
 
+## Decisão revista: a curva é aplicada pelo software (2026‑11‑26)
+
+A ideia original era gravar a curva no firmware do EC, para que ela continuasse valendo mesmo com o app travado.
+Os testes mostraram que **este EC não aceita curva customizada no firmware**:
+- tabela `0xF00`: é ignorada, porque o EC é "legado" (`0x78E` bit 6 = 0);
+- Office Advanced `0x743`: também é ignorado, com ou sem `0x727` bit 6.
+
+O único mecanismo que funciona é o **controle direto** (`0x1804/0x1809` + `0x751` bit 6), o mesmo que a Tuxedo usa no Linux
+para essa geração de EC. Então a curva passa a ser aplicada por um loop no serviço: ler temperatura → calcular duty → gravar.
+
+Riscos e mitigações:
+
+| Risco | Mitigação |
+|---|---|
+| Serviço morre e o duty fica parado num valor baixo | Recovery do Windows Service (reinicia em segundos e reassume); duty mínimo de 25 % |
+| Temperatura dispara | Emergência no próprio loop: CPU ≥ 92 °C ou GPU ≥ 87 °C → 100 % até cair 10 °C |
+| Sensor com leitura inválida (0/255) | 100 % até a leitura voltar |
+| Sleep / hibernação | Desliga o controle direto ao suspender e religa ao retomar (igual à Tuxedo) |
+| Algo desliga o `0x751` bit 6 (tecla Fn, BIOS) | O loop confere o `0x751` a cada ciclo e reassume |
+| Parada normal / Ctrl+C / exceção | `finally` devolve `0x751` ao original: o firmware retoma |
+| Reboot | O BIOS zera o `0x751`: o firmware retoma até o serviço subir |
+
+Proteção final do hardware: a CPU reduz o próprio desempenho por temperatura (Tjmax), e o EC tem desligamento térmico próprio.
+
 ## Regra 3 — Segurança na escrita da curva
 
 Toda curva passa pelo validador do Core antes de chegar ao EC:

@@ -28,6 +28,13 @@ public sealed record FanCurve
     /// "performance" = 0x40 (FanBoost do vendor).
     /// </summary>
     [JsonPropertyName("ecMode")] public string EcMode { get; init; } = "keep";
+
+    /// <summary>
+    /// Controle direto: true = as duas ventoinhas usam max(curva CPU, curva GPU). O padrão é true porque as
+    /// ventoinhas dividem os heatpipes; com o firmware, a ventoinha 2 acompanhou a CPU.
+    /// false = ventoinha 1 segue a CPU e ventoinha 2 segue a GPU.
+    /// </summary>
+    [JsonPropertyName("shared")] public bool Shared { get; init; } = true;
     [JsonPropertyName("cpu")] public CurvePoint[] Cpu { get; init; } = [];
     [JsonPropertyName("gpu")] public CurvePoint[] Gpu { get; init; } = [];
 

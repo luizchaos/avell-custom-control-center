@@ -224,6 +224,21 @@ Regras de segurança da Tuxedo: **nunca gravar duty 0** (0 = 30 % por 3 min e de
 máximo `0xC8`. No modo direto, eles regravam `0x1804/0x1809` várias vezes logo depois de ligar o bit 6, "antes do ramp-up completo",
 e repetem a cada 50 min.
 
+#### Testes 5 e 6 — sondas B e A (11:25–11:28)
+
+| Sonda | O que liga | Resultado (ocioso, ~52 °C) |
+|---|---|---|
+| **B** Office + `0x727` bit 6 | `0x751 = 0xA0`, `0x727 = 0x40`, T1 = 70 % | ~2043 RPM: **ignorado** |
+| **A** Controle direto | duty 140 em `0x1804/0x1809`, depois `0x751 = 0x40` | **~4230 / ~4250 RPM, estável por 60 s** |
+
+**Mecanismo confirmado: controle direto.** Gravar o duty (0..200) em `0x1804` (ventoinha 1) e `0x1809` (ventoinha 2) com `0x751` bit 6 ligado.
+Ao devolver `0x751 = 0x00`, o firmware retoma na hora (o duty voltou para 64/63 e o RPM começou a cair).
+
+Extras:
+- **Com o firmware no controle, `0x1804/0x1809` mostram o duty atual da curva interna** (60 = 30 % no ocioso). É uma telemetria de "% da ventoinha".
+- RPM por duty: 30 % ≈ 2050 RPM; 70 % ≈ 4230 RPM. Não é perfeitamente linear (68 → 60 RPM/%). Calibrar com uma varredura depois.
+- Com o duty regravado a cada ~4 s, o EC manteve o valor sem desvio por 60 s.
+
 **Este notebook: `0x78E = 0x0C` (bit 6 = 0), então NÃO tem controle universal.** Isso explica por que as sondas `0xF00` falharam.
 Caminhos restantes, em ordem: **(B)** Office + `0x727` bit 6; **(A)** controle direto `0x1804/0x1809`.
 O caminho (A) significa curva aplicada pelo software (o serviço lê a temperatura e grava o duty), e não pelo firmware.

@@ -1,0 +1,21 @@
+// Curva de uso (controle direto). Silenciosa no ocioso (~25–30 %, como o firmware), forte sob carga.
+// Referência: o firmware chega a ~77 % (≈ 5100 RPM) com a CPU a 84 °C; esta chega a 100 % em 85 °C.
+{
+  "name": "balanced",
+  "hysteresis": 4,
+  "shared": true,
+  "cpu": [
+    { "temp": 45, "duty": 25 },
+    { "temp": 55, "duty": 32 },
+    { "temp": 65, "duty": 45 },
+    { "temp": 75, "duty": 70 },
+    { "temp": 85, "duty": 100 }
+  ],
+  "gpu": [
+    { "temp": 45, "duty": 25 },
+    { "temp": 55, "duty": 32 },
+    { "temp": 65, "duty": 45 },
+    { "temp": 72, "duty": 70 },
+    { "temp": 82, "duty": 100 }
+  ]
+}
