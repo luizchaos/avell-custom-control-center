@@ -18,7 +18,12 @@ if (args.Length == 0) return Usage();
 
 try
 {
-    return args[0] == "kb" ? Keyboard(args[1..]) : Ec(args);
+    return args switch
+    {
+        ["kb", ..] => Keyboard(args[1..]),
+        ["fan", "preview", var path] => Preview(FanCurve.Load(path)),
+        _ => Ec(args),
+    };
 }
 catch (VendorRunningException ex) { Console.Error.WriteLine(ex.Message); return 3; }
 catch (ManagementException ex) { Console.Error.WriteLine($"Falha no WMI ({ex.ErrorCode}). Comandos de EC exigem administrador. {ex.Message}"); return 4; }
@@ -62,9 +67,90 @@ static int Ec(string[] args)
             Console.Error.WriteLine("Isto ESCREVE no EC. Confirme com: avellcc fan restore-original --yes");
             return 2;
 
+        case ["fan", "monitor", ..]:
+            var seconds = args.Length > 2 ? int.Parse(args[2], CultureInfo.InvariantCulture) : 60;
+            Console.WriteLine($"Tabela do usuário ativa: {(fan.IsUserTableActive() ? "SIM" : "não (curva interna do firmware)")}");
+            Monitor(ec, TimeSpan.FromSeconds(seconds), levels: null, watchdog: null, cancel: CancellationToken.None);
+            return 0;
+
+        case ["fan", "trial", var curvePath, ..]:
+            var duration = args.Length > 3 ? int.Parse(args[3], CultureInfo.InvariantCulture) : 180;
+            return Trial(ec, fan, FanCurve.Load(curvePath), TimeSpan.FromSeconds(duration));
+
         default:
             return Usage();
     }
+}
+
+static int Preview(FanCurve curve)
+{
+    var table = FanTableEncoder.Encode(curve);
+    Console.WriteLine($"Curva '{curve.Name}' (histerese {curve.Hysteresis} °C) → tabela do EC (nada é gravado):");
+    Console.WriteLine("nível | CPU desce<  sobe>  duty% | GPU desce<  sobe>  duty%");
+    var cpu = FanTableEncoder.Decode(table, 0x00);
+    var gpu = FanTableEncoder.Decode(table, 0x30);
+    for (var i = 0; i < FanTableEncoder.Levels; i++)
+        Console.WriteLine($"{i,5} | {cpu[i].StartTemp,9} {Fmt(cpu[i].EndTemp),6} {cpu[i].DutyPercent,6:0.#} | {gpu[i].StartTemp,9} {Fmt(gpu[i].EndTemp),6} {gpu[i].DutyPercent,6:0.#}");
+    Console.WriteLine($"raw 0xF00: {Convert.ToHexString(table)}");
+    return 0;
+
+    static string Fmt(byte end) => end == 0xFF ? "∞" : end.ToString(CultureInfo.InvariantCulture);
+}
+
+static int Trial(IEcAccess ec, FanTableService fan, FanCurve curve, TimeSpan duration)
+{
+    Preview(curve);
+    Console.WriteLine();
+    Console.WriteLine("Estado antes:"); Monitor(ec, TimeSpan.Zero, null, null, CancellationToken.None);
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    fan.Progress += (done, total) => Console.Write($"\r  gravando {done}/{total}...");
+
+    Console.WriteLine("\nAplicando curva (tabela primeiro, depois liga a tabela do usuário)...");
+    var table = fan.ApplyCurve(curve);
+    Console.WriteLine("\nCurva aplicada. Monitorando com watchdog. Ctrl+C restaura o original.");
+
+    var levels = (FanTableEncoder.Decode(table, 0x00), FanTableEncoder.Decode(table, 0x30));
+    var abort = Monitor(ec, duration, levels, new FanWatchdog(), cts.Token);
+
+    bool keep;
+    if (abort is not null) { Console.WriteLine($"\n!! WATCHDOG: {abort}"); keep = false; }
+    else if (cts.IsCancellationRequested) { Console.WriteLine("\nCancelado."); keep = false; }
+    else
+    {
+        Console.Write("\nManter esta curva? (o EC pode voltar ao firmware no reboot) [s/N]: ");
+        keep = Console.ReadLine()?.Trim().ToLowerInvariant() is "s" or "sim";
+    }
+
+    if (keep) { Console.WriteLine("Curva mantida."); return 0; }
+    Console.WriteLine("Restaurando o original...");
+    fan.RestoreOriginal();
+    Console.WriteLine("\nOriginal restaurado e conferido.");
+    Monitor(ec, TimeSpan.Zero, null, null, CancellationToken.None);
+    return abort is null ? 0 : 5;
+}
+
+/// <summary>Imprime amostras até o fim do tempo. Retorna o motivo de aborto do watchdog, se houver.</summary>
+static string? Monitor(IEcAccess ec, TimeSpan duration, (EncodedLevel[] Cpu, EncodedLevel[] Gpu)? levels, FanWatchdog? watchdog, CancellationToken cancel)
+{
+    var end = DateTimeOffset.Now + duration;
+    do
+    {
+        var s = FanSample.Read(ec);
+        var line = $"{s.Time:HH:mm:ss}  CPU {s.CpuTemp,3} °C  GPU {s.GpuTemp,3} °C  fan1 {s.Fan1,5}  fan2 {s.Fan2,5}";
+        if (levels is { } l)
+        {
+            var cpuDuty = FanTableEncoder.ExpectedDuty(l.Cpu, s.CpuTemp);
+            var gpuDuty = FanTableEncoder.ExpectedDuty(l.Gpu, s.GpuTemp);
+            line += $"  | curva: CPU {cpuDuty,5:0.#}%  GPU {gpuDuty,5:0.#}%";
+            if (watchdog?.Check(s, cpuDuty, gpuDuty) is { } reason) { Console.WriteLine(line); return reason; }
+        }
+        Console.WriteLine(line);
+        if (duration == TimeSpan.Zero) break;
+        cancel.WaitHandle.WaitOne(TimeSpan.FromSeconds(1));
+    } while (DateTimeOffset.Now < end && !cancel.IsCancellationRequested);
+    return null;
 }
 
 static int Keyboard(string[] args)
@@ -108,7 +194,10 @@ static int Usage()
 {
     Console.Error.WriteLine("""
         uso:
-          avellcc status | fan show | fan backup | fan restore-original --yes      (admin)
+          avellcc fan preview <curva.json>                                      (simula, não grava)
+          avellcc status | fan show | fan backup | fan monitor [segundos]       (admin, só leitura)
+          avellcc fan trial <curva.json> [segundos]                             (admin, GRAVA com watchdog)
+          avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info
           avellcc kb color <RRGGBB> [-b 0-4] [--save] [--raw]
           avellcc kb zones <RRGGBB> <RRGGBB> <RRGGBB> <RRGGBB> [-b 0-4] [--save] [--raw]

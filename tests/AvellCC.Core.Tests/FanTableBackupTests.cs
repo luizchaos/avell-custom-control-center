@@ -58,7 +58,7 @@ public sealed class FanTableBackupTests : IDisposable
         var newTable = new byte[EcAddresses.FanTableLength];
         Array.Fill(newTable, (byte)0x42);
 
-        _service.Apply(new Dictionary<ushort, byte> { [EcAddresses.ApOemByte3] = 0x08 }, newTable, "test");
+        _service.Apply(new Dictionary<ushort, byte> { [EcAddresses.ApOemByte3] = 0x08 }, newTable, FanTableService.WriteOrder.TableFirst, "test");
 
         Assert.Equal(Convert.ToHexString(originalBytes), _store.LoadOriginal().RawHex);
         Assert.Equal(newTable, _ec.ReadRange(EcAddresses.FanTableStart, EcAddresses.FanTableLength));
@@ -77,14 +77,14 @@ public sealed class FanTableBackupTests : IDisposable
     {
         var guarded = new FanTableService(_ec, _store, () => new MachineInfo(), () => ["GCUService"]);
         Assert.Throws<Core.Safety.VendorRunningException>(() =>
-            guarded.Apply(new Dictionary<ushort, byte>(), new byte[EcAddresses.FanTableLength], "x"));
+            guarded.Apply(new Dictionary<ushort, byte>(), new byte[EcAddresses.FanTableLength], FanTableService.WriteOrder.TableFirst, "x"));
         Assert.Empty(_ec.Writes);
     }
 
     [Fact]
     public void Apply_rejects_registers_outside_the_allow_list() =>
         Assert.Throws<ArgumentException>(() =>
-            _service.Apply(new Dictionary<ushort, byte> { [EcAddresses.ProjectId] = 1 }, new byte[EcAddresses.FanTableLength], "x"));
+            _service.Apply(new Dictionary<ushort, byte> { [EcAddresses.ProjectId] = 1 }, new byte[EcAddresses.FanTableLength], FanTableService.WriteOrder.TableFirst, "x"));
 
     /// <summary>Mesmo formato gerado por tools/diag/Invoke-AvellDiag.ps1 (ConvertTo-Json do PowerShell 5.1).</summary>
     private const string ScriptBackup = """

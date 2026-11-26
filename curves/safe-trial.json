@@ -1,0 +1,22 @@
+// Curva de teste: mais agressiva que a de fábrica observada (3300–5100 RPM entre 72 e 84 °C).
+// Objetivo do primeiro teste: confirmar que o EC segue a tabela, não economizar ruído.
+{
+  "name": "safe-trial",
+  "hysteresis": 4,
+  "cpu": [
+    { "temp": 40, "duty": 30 },
+    { "temp": 55, "duty": 40 },
+    { "temp": 65, "duty": 55 },
+    { "temp": 75, "duty": 70 },
+    { "temp": 82, "duty": 90 },
+    { "temp": 88, "duty": 100 }
+  ],
+  "gpu": [
+    { "temp": 40, "duty": 30 },
+    { "temp": 55, "duty": 40 },
+    { "temp": 65, "duty": 55 },
+    { "temp": 72, "duty": 70 },
+    { "temp": 80, "duty": 90 },
+    { "temp": 85, "duty": 100 }
+  ]
+}
