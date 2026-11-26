@@ -51,6 +51,26 @@ static int Ec(string[] args, bool rawBytes)
             Console.WriteLine($"Vendor     : {(vendor.Length == 0 ? "parado" : string.Join(", ", vendor))}");
             return 0;
 
+        case ["ec", "dump", var startText, var lengthText]:
+        {
+            // SOMENTE LEITURA: só chama ec.Read.
+            var start = Convert.ToUInt16(startText.Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            var length = Convert.ToInt32(lengthText.Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            if (length is < 1 or > 0x400) throw new ArgumentException("Tamanho entre 0x1 e 0x400.");
+            var data = ec.ReadRange(start, length);
+            Console.WriteLine("       00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+            for (var row = start & ~0xF; row < start + length; row += 16)
+            {
+                var cells = Enumerable.Range(0, 16).Select(c =>
+                {
+                    var a = row + c;
+                    return a >= start && a < start + length ? data[a - start].ToString("X2", CultureInfo.InvariantCulture) : "  ";
+                });
+                Console.WriteLine($"{row:X4}:  {string.Join(' ', cells)}");
+            }
+            return 0;
+        }
+
         case ["fan", "show"]:
             PrintTable(fan.ReadStable());
             return 0;
@@ -203,6 +223,7 @@ static int Usage()
         uso:
           avellcc fan preview <curva.json>                                      (simula, não grava)
           avellcc status | fan show | fan backup | fan monitor [segundos] [--raw] (admin, só leitura)
+          avellcc ec dump <inicio hex> <tamanho hex>                             (admin, só leitura)
           avellcc fan trial <curva.json> [segundos] [--raw]                     (admin, GRAVA com watchdog)
           avellcc fan restore-original --yes                                    (admin, GRAVA)
           avellcc kb info

@@ -23,7 +23,24 @@ public static class EcAddresses
     public const ushort Fan1High = 0x464;
     public const ushort Fan1Low = 0x465;
     public const ushort Fan2High = 0x46C;
-    public const ushort Fan2Low = 0x46B;
+    // O vendor usa 0x46B, mas neste modelo 0x46B é fixo (0x78, ou 0x64 em 0x751 = 0xA0). O byte baixo real é 0x46D
+    // (confirmado em 2026-11-26: com 0x46C/0x46D a fan2 fica coerente com a fan1, sem degraus de 256).
+    public const ushort Fan2Low = 0x46D;
+
+    // Estado da curva interna do firmware (observado em 2026-11-26): nível atual e limiar de temperatura do nível.
+    public const ushort Fan1Level = 0x460;
+    public const ushort Fan1LevelTemp = 0x461;
+    public const ushort Fan2Level = 0x468;
+    public const ushort Fan2LevelTemp = 0x469;
+
+    // "MyFan2/MyFan3" (Office Mode Advanced): 5 velocidades (% × 2) nas temperaturas T1..T5 do firmware.
+    public const ushort OfficeAdvPwmStart = 0x743;   // 0x743..0x747
+    public const int OfficeAdvPwmCount = 5;
+    public const ushort OfficeAdvPwmDefaultStart = 0x786; // 0x786..0x78A (defaults MyFan3)
+    public const ushort OfficeAdvMinSpeed = 0x79E;
+    public const ushort OfficeAdvMinTemp = 0x79F;
+    public const ushort OfficeAdvExtraSpeed = 0x7A0;
+    public const ushort BiosOemByte2 = 0x782;        // bit 3 = suporta MyFan3; bit 2 = tipo de tabela office
 
     // Ventoinhas — modo
     public const ushort FanControl = 0x751;   // 0x40 = performance/boost, 0xA0 = standard/quiet

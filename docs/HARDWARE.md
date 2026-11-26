@@ -122,8 +122,55 @@ Consequências:
 - **fan2** sobe em degraus exatos de 256 (0x864, 0x964, 0xA64…): o byte baixo em `0x46B` quase não muda.
   Suspeita: o byte baixo não está em `0x46B`. Investigar com `fan monitor --raw` (faixa `0x460–0x46F`).
 
-Próximo passo: sondas com **100 % a partir de 40 °C** (`curves/probe-max-keep.json` e `probe-max-standard.json`).
-Se as ventoinhas dispararem ociosas, fica provado que o EC segue a tabela, e o teste mostra o RPM máximo e o `ecMode` certo.
+#### Testes 2 e 3 — sondas com 100 % a partir de 40 °C (10:58–11:04)
+
+| Sonda | `0x751` | `0x7A5` | Resultado (ocioso, 54–58 °C) |
+|---|---|---|---|
+| `probe-max-keep` | `0x00` | `0x08` | 2043–2377 RPM, **igual ao firmware** |
+| `probe-max-standard` | `0xA0` | `0x08` | 2041–2366 RPM, **igual ao firmware** |
+
+**Conclusão: este EC ignora a tabela de 16 níveis em `0xF00`.** O caminho `SetFanTable` do vendor não vale para este modelo.
+O teto de ~4000 RPM do teste 1 veio do `0x751 = 0xA0` (ver "Office Mode Advanced" abaixo), não da tabela.
+`FanTableService.ApplyCurve` e `FanTableEncoder` ficam no código só como referência, e não são usados para controlar as ventoinhas.
+
+#### Estado da curva interna do firmware (`0x460–0x46F`)
+
+```
+0x460: 01 3C 43 05 | 08 59 | 00 00     ventoinha 1: nível, limiar °C, ?, ?, RPM hi, RPM lo
+0x468: 01 3C 78 78 | 08 13 | 00 A5     ventoinha 2: nível, limiar °C, ?, ?, RPM hi, RPM lo
+```
+
+- `0x460`/`0x468` = **nível atual** (01→02→03 com a CPU subindo de 58 para 63 °C); `0x461`/`0x469` = **limiar do nível** (0x3C/0x46/0x50 = 60/70/80 °C).
+- **Byte baixo da ventoinha 2 = `0x46D`** (o vendor usa `0x46B`, que neste modelo é fixo: 0x78, ou 0x64 com `0x751 = 0xA0`). Corrigido no código e no diagnóstico.
+
+### Office Mode Advanced ("MyFan2/MyFan3") — o mecanismo de curva deste modelo
+
+Tirado do IL do `MyFanManager_Intel`, e coerente com o registro desta máquina
+(`HKLM\SOFTWARE\OEM\GamingCenter2\MyFan3`: `OfficeMode = 2`, `OfficeAdvancedLevel = 4`, presets `OfficeModeAdvL1..L4` com `T1..T5_PWM`).
+
+| Registrador | Uso | Código do vendor |
+|---|---|---|
+| `0x743–0x747` | **Duty dos 5 níveis T1..T5** (% × 2) | `SetFan_Optimized_PWM`: `EC[0x743+i] = Ti_PWM × 2` |
+| `0x786–0x78A` | Defaults MyFan3 dos 5 níveis | `GetFanTablePWMDefault` |
+| `0x751 = 0x80 + L` | Office **Basic**, nível fixo L (0..5) | `SetBasicFanLevel` |
+| `0x751 = 0xA0` | Office **Advanced** (segue `0x743–0x747`) | `SetFanMode(2)` |
+| `0x751 = 0x00` / `0x40` | Gaming (curva interna) / Turbo-FanBoost | `SetFanMode(1)` / `(4)` |
+| `0x79E` / `0x79F` / `0x7A0` | Velocidade mín. / temp. mín. / velocidade extra | `SetOfficeModeAdv_*` (`Level2Pwm`: 0,60,80,100,120,140) |
+| `0x782` bit 3 / bit 2 | Suporta MyFan3 / tipo de tabela office | `0x782 = 0x5D`: **os dois ligados** |
+
+Presets do vendor no registro (T1..T5, em %):
+
+| Preset | T1 | T2 | T3 | T4 | T5 |
+|---|---|---|---|---|---|
+| L1 | 30 | 32 | 36 | 45 | 60 |
+| L2 | 30 | 35 | 40 | 50 | 60 |
+| L3 | 30 | 39 | 44 | 55 | 60 |
+| L4 (ativo) | 30 | 35 | 40 | 50 | 60 |
+
+- Isso explica o teste 1: com `0xA0`, o EC seguiu os T1..T5 que já estavam em `0x743–0x747` (T5 ≈ 60 %), e daí o teto de ~4000 RPM.
+- As **temperaturas** T1..T5 parecem fixas no firmware (limiares de 10 em 10 °C vistos em `0x461`). A curva customizável deste modelo é **5 velocidades em temperaturas fixas**, mais velocidade mínima, temperatura mínima e velocidade extra.
+- **[não verificado]** Valores atuais de `0x743–0x747` e `0x786–0x78A`, e se o firmware aceita T5 acima de 60 %.
+  Próximo passo: `avellcc ec dump 0x700 0x100` (somente leitura).
 
 ### Outros
 

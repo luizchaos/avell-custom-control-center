@@ -251,7 +251,7 @@ $nvsmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
 $samplesOut = @()
 for ($s = 0; $s -lt $Samples; $s++) {
   $fan1 = ((Read-EcByte 0x464) -shl 8) -bor (Read-EcByte 0x465)
-  $fan2 = ((Read-EcByte 0x46C) -shl 8) -bor (Read-EcByte 0x46B)
+  $fan2 = ((Read-EcByte 0x46C) -shl 8) -bor (Read-EcByte 0x46D)   # byte baixo real e 0x46D (0x46B e fixo neste modelo)
   $ecTemps = Read-EcRange 0x430 0x30
   $tz = @(Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction SilentlyContinue |
           ForEach-Object { [pscustomobject]@{ zone = $_.Name; celsius = [Math]::Round($_.HighPrecisionTemperature / 10.0 - 273.15, 1) } })
