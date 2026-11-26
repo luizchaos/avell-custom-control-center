@@ -213,7 +213,8 @@ O AvellCC faz "uma cor por zona" assim: `0x14` slot 1 → `0x08 Static color=1` 
   - Estado de fábrica/vendor encontrado: `02 03 01 24 08 01` = Apply, **Wave**, speed 1 (o mais rápido), brilho 36 (nível 3), paleta cíclica, direita→esquerda.
   - O byte de `save` volta 0 mesmo quando o efeito foi gravado com save.
 - `kb zones FF0000 00FF00 0000FF FFFFFF` foi aceito: o `0x88` passou a reportar `Static, brilho 50, color=1`.
-  A ordem física das zonas e a fidelidade das cores dependem de confirmação visual.
+- **Confirmado visualmente:** zonas **1→4 = esquerda→direita**, cores corretas. O branco sai branco com a correção
+  `(R, 100·G/255, 200·B/255)`, então ela vale para este teclado.
 
 Para voltar ao efeito do vendor (os bytes exatos lidos acima):
 ```powershell
