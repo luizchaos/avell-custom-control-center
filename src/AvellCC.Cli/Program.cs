@@ -3,6 +3,7 @@ using System.Management;
 using AvellCC.Core.Ec;
 using AvellCC.Core.Fan;
 using AvellCC.Core.Keyboard;
+using AvellCC.Core.Monitoring;
 using AvellCC.Core.Safety;
 
 // EC (requires administrator):
@@ -24,6 +25,8 @@ try
 {
     return args switch
     {
+        ["sys"] => Sys(3),
+        ["sys", var n] => Sys(int.Parse(n, CultureInfo.InvariantCulture)),
         ["kb", ..] => Keyboard(rawBytes ? [.. args[1..], "--raw"] : args[1..]),
         ["fan", "preview", var path] => Preview(FanCurve.Load(path)),
         _ => Ec(args, rawBytes),
@@ -33,6 +36,32 @@ catch (VendorRunningException ex) { Console.Error.WriteLine(ex.Message); return 
 catch (ManagementException ex) { Console.Error.WriteLine($"WMI failure ({ex.ErrorCode}). EC commands require administrator rights. {ex.Message}"); return 4; }
 catch (UnauthorizedAccessException) { Console.Error.WriteLine("Access denied. EC commands require administrator rights."); return 4; }
 catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 1; }
+
+// Prints what the dashboard shows (CPU/GPU usage, memory, drives, network, power), one sample per second.
+static int Sys(int samples)
+{
+    using var monitor = new SystemMonitor();
+    var info = monitor.Info;
+    Console.WriteLine($"CPU  {info.CpuName}");
+    Console.WriteLine($"RAM  {MonitorMath.Bytes(info.InstalledMemory)} installed");
+    foreach (var g in info.Gpus)
+        Console.WriteLine($"GPU  {g.Name}  vendor=0x{g.VendorId:X4} luid=0x{g.Luid:X} vram={MonitorMath.Bytes(g.DedicatedMemory)} {(g.IsDiscrete ? "discrete" : "integrated")}");
+    for (var i = 0; i < samples; i++)
+    {
+        Thread.Sleep(1000);
+        var s = monitor.Sample();
+        Console.WriteLine();
+        Console.WriteLine($"cpu {s.CpuPercent:0.0} %   mem {s.Memory.Percent:0.0} % ({MonitorMath.Bytes(s.Memory.Used)} / {MonitorMath.Bytes(s.Memory.Total)})   disk active {(s.DiskActivePercent is { } d ? $"{d:0.0} %" : "n/a")}");
+        foreach (var g in s.Gpus)
+            Console.WriteLine($"  gpu {g.Adapter.Name}: {g.Percent:0.0} %  vram {(g.VramUsed is { } v ? MonitorMath.Bytes(v) : "n/a")}");
+        foreach (var dr in s.Drives)
+            Console.WriteLine($"  drive {dr.Name} '{dr.Label}': {MonitorMath.Bytes(dr.Free)} free of {MonitorMath.Bytes(dr.Total)} ({dr.Percent:0} % used)");
+        foreach (var n in s.Networks)
+            Console.WriteLine($"  net {n.Name} ({(n.IsWireless ? "wireless" : "wired")}, {(n.IsUp ? "up" : "down")}): down {MonitorMath.Rate(n.DownBytesPerSecond)} up {MonitorMath.Rate(n.UpBytesPerSecond)}");
+        Console.WriteLine($"  power plan '{s.Power.PlanName}', mode {s.Power.Mode}, ac {s.Power.OnAc?.ToString() ?? "?"}, battery {s.Power.BatteryPercent?.ToString(CultureInfo.InvariantCulture) ?? "n/a"} %");
+    }
+    return 0;
+}
 
 static int Ec(string[] args, bool rawBytes)
 {

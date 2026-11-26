@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:l="clr-namespace:AvellCC.App.Localization"
-        Title="AvellCC" Width="1040" Height="740" MinWidth="820" MinHeight="560"
+        xmlns:local="clr-namespace:AvellCC.App"
+        Title="AvellCC" Width="1120" Height="760" MinWidth="900" MinHeight="560"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <Style TargetType="DataGrid">
@@ -54,41 +55,7 @@
 
             <!-- ============ DASHBOARD ============ -->
             <TabItem Header="{l:Tr tab.dashboard}" Tag="dashboard">
-                <WrapPanel Margin="8">
-                    <Border Style="{StaticResource Card}" Width="220">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.cpu}"/>
-                            <TextBlock x:Name="CpuText" Style="{StaticResource Big}" Text="— °C"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Card}" Width="220">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.gpu}"/>
-                            <TextBlock x:Name="GpuText" Style="{StaticResource Big}" Text="— °C"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Card}" Width="220">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan1}"/>
-                            <TextBlock x:Name="Fan1Text" Style="{StaticResource Big}" Text="— RPM"/>
-                            <TextBlock x:Name="Fan1Duty" Style="{StaticResource Caption}" Text="—"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Card}" Width="220">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.fan2}"/>
-                            <TextBlock x:Name="Fan2Text" Style="{StaticResource Big}" Text="— RPM"/>
-                            <TextBlock x:Name="Fan2Duty" Style="{StaticResource Caption}" Text="—"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Card}" Width="456">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="{l:Tr dash.control}"/>
-                            <TextBlock x:Name="ModeText" FontSize="22" FontWeight="SemiBold" Text="—"/>
-                            <TextBlock x:Name="MessageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Text=""/>
-                        </StackPanel>
-                    </Border>
-                </WrapPanel>
+                <local:DashboardPanel x:Name="Dashboard"/>
             </TabItem>
 
             <!-- ============ FANS ============ -->

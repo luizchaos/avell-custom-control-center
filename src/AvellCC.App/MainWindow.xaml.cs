@@ -179,23 +179,12 @@ public partial class MainWindow : Window
         ShowBanner(Loc.T(_simulate ? "banner.noServiceSim" : "banner.noService"), "Bad");
         StatusText.Text = Loc.T("state.noService");
         StatusDot.Fill = (Brush)FindResource("Bad");
+        Dashboard.UpdateStatus(null);
     }
 
     private void ShowStatus(ControlStatus s)
     {
-        CpuText.Text = $"{s.CpuTemp} °C";
-        GpuText.Text = $"{s.GpuTemp} °C";
-        Fan1Text.Text = $"{s.Fan1Rpm} RPM";
-        Fan2Text.Text = $"{s.Fan2Rpm} RPM";
-        Fan1Duty.Text = $"{s.Fan1Duty:0.#} %";
-        Fan2Duty.Text = $"{s.Fan2Duty:0.#} %";
-        ModeText.Text = s.State switch
-        {
-            LoopState.Curve or LoopState.Emergency => Loc.T("dash.mode.curve", s.CurveName),
-            LoopState.Firmware => Loc.T("dash.mode.firmware"),
-            _ => StateText(s.State),
-        };
-        MessageText.Text = s.Message ?? "";
+        Dashboard.UpdateStatus(s);
         StatusText.Text = StateText(s.State);
         StatusDot.Fill = (Brush)FindResource(s.State switch
         {

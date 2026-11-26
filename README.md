@@ -9,6 +9,8 @@ built on the **Uniwill** (TongFang-family) platform.
   temperatures every 2 s and sets the fan duty directly, with hysteresis, smooth slow-down, a 25 % minimum,
   100 % emergency override, and automatic hand-back to the firmware on stop, sleep or error.
 - **Keyboard RGB (4 zones)** — single color, one color per zone, or firmware effects with your own palette.
+- **Dashboard** — CPU and per-GPU usage rings with EC temperatures, memory, disk activity, VRAM, drive space,
+  network throughput, power plan / mode and battery (read from Windows counters, no admin).
 - **Tray app** — live temperatures, RPM and duty, quick fan-mode switch, starts with Windows.
 - **English and Portuguese UI** — one JSON file per language, easy to extend
   (see [src/AvellCC.App/Languages/README.md](src/AvellCC.App/Languages/README.md)).

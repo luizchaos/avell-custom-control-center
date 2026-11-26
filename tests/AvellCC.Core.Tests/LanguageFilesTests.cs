@@ -54,6 +54,7 @@ public partial class LanguageFilesTests
         // keys built at runtime
         foreach (var state in Enum.GetNames<LoopState>()) used.Add($"state.{state}");
         foreach (var mode in new[] { "static", "zones", "effect", "off" }) used.Add($"kb.hint.{mode}");
+        foreach (var mode in Enum.GetNames<AvellCC.Core.Monitoring.PowerMode>().Where(m => m != "Unknown")) used.Add($"power.{mode}");
 
         Assert.NotEmpty(used);
         Assert.Empty(used.Where(k => !k.Contains('{')).Except(english));
