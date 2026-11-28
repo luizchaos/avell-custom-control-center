@@ -112,14 +112,27 @@ the EC itself writes duty 200/200 and the fans reach **5543 / 5586 RPM** within 
 
 ### Operational mode button (2026-11-27)
 
-The physical operational mode button is handled by the **EC itself**: each press changes bits 4, 5 and 7 of `0x751`
-(seen `0x20 → 0x30 → 0xA0` with AvellCC's bit 6 on: `0x60`, `0x70`, `0xE0`) even with no vendor software running, and
-raises an ACPI WMI event: `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` →
-`OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`). Listening needs administrator rights.
+The physical operational mode button is seen by the EC, which reacts in **one of two ways** (both observed on the
+A65 LIV, sometimes switching right after the AvellCC service restarts; the trigger is not known):
 
-AvellCC (service): in curve mode each press switches to the next fan curve (alphabetical, wraps around) and the tray
-shows a notification; in firmware mode it does nothing. Because of this button, handing control back to the firmware
-only clears bit 6 instead of restoring the old byte.
+| Behavior | What happens on a press |
+|---|---|
+| **A — event** | ACPI WMI event `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` → `OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`, which then writes the mode to `0x751` itself). `0x751` does not change |
+| **B — EC cycles by itself** | no event; the EC steps its operational mode in `0x751` bits 4, 5, 7: `0x30 → 0x20 → 0xA0 → 0x30…` (with AvellCC's bit 6: `0x70 → 0x60 → 0xE0`) |
+
+- The vendor's "app present" flags (`0x7A6` bit 0 for fans, `0x748` bit 0 for the light bar) were both set while
+  behavior B happened, so they are not the switch.
+- **Do not write the mode bits back** after a B press: the EC flips them again ~6 s later (seen every 6 s while
+  AvellCC tried it), which looks like more presses.
+- Listening to WMI events needs administrator rights. The EC also sends `0xA7` and `0x43` when the app starts
+  (probably the dGPU waking up for DXGI); they are ignored.
+
+AvellCC (service), in curve mode: an `0xAB` event **or** a change in `0x751` bits 4/5/7 that AvellCC did not make
+(checked every 2 s) = one press → next fan curve (alphabetical, wraps around), and the app shows its own on-screen
+notice (Windows balloons are hidden when notifications / Do not disturb are off). A `0x751` change within 3 s of a
+handled event counts as the same press. Firmware mode: nothing. Every EC event and every `0x751` change is written to
+the Windows event log (Application, source `AvellCC.Service`). Because the button changes `0x751`, handing control
+back to the firmware only clears bit 6 instead of restoring the old byte.
 
 ### Mechanisms this EC ignores (kept in the code for other models)
 

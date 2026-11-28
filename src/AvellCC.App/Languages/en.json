@@ -130,9 +130,9 @@
 
   "tray.open": "Open",
   "tray.fans": "Fans",
+  "osd.fanCurve": "Fan curve",
   "tray.keyboard": "Keyboard profiles",
   "tray.noProfiles": "(no profiles yet)",
-  "tray.curveSwitched": "Fan curve: {0}",
   "tray.firmware": "Firmware (laptop default)",
   "tray.curve": "Curve: {0}",
   "tray.exit": "Exit",

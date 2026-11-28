@@ -49,6 +49,8 @@ public static class EcAddresses
     public const byte UniversalFanCtrlBit = 0x40;
     public const ushort DirectFan1Duty = 0x1804;     // direct (legacy) control: fan 1 duty 0..200
     public const ushort DirectFan2Duty = 0x1809;     // same, fan 2
+    /// <summary>0x751 bits the EC changes on its own when the operational mode button is pressed (4, 5 and 7).</summary>
+    public const byte OperationalModeMask = 0xB0;
     public const byte FullFanModeBit = 0x40;         // 0x751 bit 6: "full fan mode", required for direct control (= vendor Fan Boost)
     public const byte MaxDutyRaw = 0xC8;             // 200 = 100 %
 

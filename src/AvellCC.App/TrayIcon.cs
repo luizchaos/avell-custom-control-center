@@ -18,6 +18,7 @@ public sealed class TrayIcon : IDisposable
     private readonly Forms.ToolStripMenuItem _fanMenu = new();
     private readonly Forms.ToolStripMenuItem _keyboardMenu = new();
     private int? _lastModeSwitch;
+    private OsdPopup? _osd;
     private readonly Forms.ToolStripMenuItem _exit = new();
     private LoopState? _lastState;
     private ControlStatus? _lastStatus;
@@ -115,7 +116,7 @@ public sealed class TrayIcon : IDisposable
         if (s is not null)
         {
             if (_lastModeSwitch is { } seen && s.ModeSwitchCount > seen && s.ModeSwitchCurve is { } curve)
-                _icon.ShowBalloonTip(3000, "AvellCC", Loc.T("tray.curveSwitched", curve), Forms.ToolTipIcon.Info);
+                (_osd ??= new OsdPopup()).ShowMessage(Loc.T("osd.fanCurve"), curve);
             _lastModeSwitch = s.ModeSwitchCount;
         }
 

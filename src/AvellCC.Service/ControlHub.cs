@@ -41,6 +41,9 @@ public sealed class ControlHub : IDisposable
     private DateTime _lastModeButton = DateTime.MinValue;
     private int _modeSwitchCount;
     private string? _modeSwitchCurve;
+    private int _lastFanControl = -1;
+    /// <summary>A 0x751 mode change this soon after a handled 0xAB event belongs to the same press.</summary>
+    private static readonly TimeSpan ModeEventGrace = TimeSpan.FromSeconds(3);
 
     public ControlHub(HubOptions options, ILogger<ControlHub> log)
     {
@@ -85,6 +88,19 @@ public sealed class ControlHub : IDisposable
     public ControlStatus Tick()
     {
         var status = _loop.Tick();
+        if (!_options.Simulate)
+        {
+            // 0x751 also holds the EC's operational mode (bits 4, 5, 7), changed by the mode button: log every change
+            var fanControl = ReadSafe(EcAddresses.FanControl);
+            if (fanControl != _lastFanControl && fanControl >= 0)
+            {
+                if (_lastFanControl < 0) _log.LogInformation("0x751 = 0x{After:X2} at start.", fanControl);
+                else _log.LogInformation("0x751: 0x{Before:X2} -> 0x{After:X2}.", _lastFanControl, fanControl);
+                if (_lastFanControl >= 0 && ((fanControl ^ _lastFanControl) & EcAddresses.OperationalModeMask) != 0)
+                    fanControl = OnOperationalModeChangedByEc(_lastFanControl, fanControl);
+                _lastFanControl = fanControl;
+            }
+        }
         if (status.State is LoopState.Error or LoopState.Emergency)
             _log.LogWarning("Fans: {State} — {Message}", status.State, status.Message);
         return status;
@@ -121,9 +137,13 @@ public sealed class ControlHub : IDisposable
             _events = new EcEventWatcher();
             _events.EventReceived += code =>
             {
+                // EC events are rare (Fn keys, mode button); logging every one documents codes we do not handle yet
+                var fanControl = ReadSafe(EcAddresses.FanControl);
+                _log.LogInformation("EC event 0x{Code:X2} (0x751 = 0x{FanControl:X2}).", code, fanControl);
                 if (code == EcEvents.ModeButton) OnModeButton();
             };
             _events.Start();
+            _log.LogInformation("Listening for EC events (operational mode button = 0x{Code:X2}).", EcEvents.ModeButton);
         }
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
@@ -131,6 +151,33 @@ public sealed class ControlHub : IDisposable
             _events?.Dispose();
             _events = null;
         }
+    }
+
+    /// <summary>
+    /// The EC does not always send the 0xAB event: sometimes it handles the press itself and only cycles its operational
+    /// mode (0x751 bits 4, 5, 7). AvellCC never writes those bits, so a change there is a button press too
+    /// (in curve mode: next curve, unless an event already handled this press).
+    /// The EC's new mode is left alone: writing the old mode back makes the EC flip it again a few seconds later,
+    /// which would look like more presses (seen on the A65 LIV). Returns the value now in 0x751.
+    /// </summary>
+    private int OnOperationalModeChangedByEc(int before, int after)
+    {
+        bool curveMode;
+        lock (_settingsLock) curveMode = _settings.FanMode == "curve";
+        if (!curveMode) return after;   // firmware mode: the EC's own mode switch is the expected behavior
+
+        if (DateTime.UtcNow - _lastModeButton > ModeEventGrace)
+        {
+            _log.LogInformation("Mode button without event (EC changed 0x751 0x{Before:X2} -> 0x{After:X2}).", before, after);
+            OnModeButton();
+        }
+        return after;
+    }
+
+    private int ReadSafe(ushort address)
+    {
+        try { return _ec.Read(address); }
+        catch (Exception ex) when (ex is ManagementException or InvalidOperationException) { return -1; }
     }
 
     /// <summary>
@@ -206,7 +253,7 @@ public sealed class ControlHub : IDisposable
         object? result = command switch
         {
             Protocol.Commands.Info => new ServiceInfo(Protocol.Version, typeof(ControlHub).Assembly.GetName().Version?.ToString() ?? "?", _options.Simulate, _machine),
-            Protocol.Commands.Status => _loop.Status,
+            Protocol.Commands.Status => Status,   // includes the mode button counter
             Protocol.Commands.GetSettings => _settings,
             Protocol.Commands.ListCurves => _store.ListCurves(),
             Protocol.Commands.SaveCurve => SaveCurve(Arg<FanCurve>(args)),

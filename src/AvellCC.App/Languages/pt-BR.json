@@ -130,9 +130,9 @@
 
   "tray.open": "Abrir",
   "tray.fans": "Ventoinhas",
+  "osd.fanCurve": "Curva das ventoinhas",
   "tray.keyboard": "Perfis do teclado",
   "tray.noProfiles": "(nenhum perfil ainda)",
-  "tray.curveSwitched": "Curva das ventoinhas: {0}",
   "tray.firmware": "Firmware (padrão do notebook)",
   "tray.curve": "Curva: {0}",
   "tray.exit": "Sair",
