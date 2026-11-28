@@ -26,6 +26,14 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
         CallAsync<AppSettings>(Protocol.Commands.SetFanMode, new SetFanModeArgs(mode, curveName), c);
     public Task<AppSettings> SetKeyboardAsync(KeyboardSettings keyboard, CancellationToken c = default) =>
         CallAsync<AppSettings>(Protocol.Commands.SetKeyboard, keyboard, c);
+    public Task<AppSettings> SaveKeyboardProfileAsync(KeyboardProfile profile, CancellationToken c = default) =>
+        CallAsync<AppSettings>(Protocol.Commands.SaveKeyboardProfile, profile, c);
+    public Task<AppSettings> DeleteKeyboardProfileAsync(string name, CancellationToken c = default) =>
+        CallAsync<AppSettings>(Protocol.Commands.DeleteKeyboardProfile, new NameArgs(name), c);
+    public Task<AppSettings> ApplyKeyboardProfileAsync(string name, CancellationToken c = default) =>
+        CallAsync<AppSettings>(Protocol.Commands.ApplyKeyboardProfile, new NameArgs(name), c);
+    public Task<ControlStatus> PressModeButtonAsync(CancellationToken c = default) =>
+        CallAsync<ControlStatus>(Protocol.Commands.PressModeButton, null, c);
     public Task<MemoryCleanResult> FreeMemoryAsync(CancellationToken c = default) =>
         CallAsync<MemoryCleanResult>(Protocol.Commands.FreeMemory, null, c);
 

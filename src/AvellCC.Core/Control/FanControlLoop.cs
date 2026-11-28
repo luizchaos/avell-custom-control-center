@@ -21,6 +21,10 @@ public sealed record ControlStatus
     public bool DirectControl { get; init; }
     public string[] VendorRunning { get; init; } = [];
     public string? Message { get; init; }
+    /// <summary>Incremented by the service each time the mode button switched the curve (the UI shows a notification).</summary>
+    public int ModeSwitchCount { get; init; }
+    /// <summary>Curve chosen by the last mode button press.</summary>
+    public string? ModeSwitchCurve { get; init; }
 }
 
 /// <summary>

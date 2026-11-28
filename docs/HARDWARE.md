@@ -80,7 +80,8 @@ enable : write duty to 0x1804 (fan 1) and 0x1809 (fan 2), 0..200
          set 0x751 bit 6 ("full fan mode", 0x40)
          rewrite the duty a few times right away (before the EC finishes ramping to maximum)
 keep   : rewrite the duty on change, plus a 30 s keep-alive
-disable: restore 0x751 to its original value (0x00) → the firmware resumes immediately
+disable: clear only 0x751 bit 6 → the firmware resumes immediately
+         (the other bits belong to the EC / operational mode button, see below)
 ```
 
 Safety rules (from tuxedo-drivers, enforced by AvellCC): **never write 0** (0 = 30 % for 3 minutes, then stop;
@@ -108,6 +109,17 @@ the EC itself writes duty 200/200 and the fans reach **5543 / 5586 RPM** within 
 | `0x40` | Performance / Turbo / Benchmark / Fan Boost (bit 6) | `SetFanMode(1/4)`, `SetFanBoost` |
 | `0xA0` | Office Advanced / Standard (caps the fans at the T5 speed, ~60 %) | `SetFanMode(2/3)` |
 | `0x80 + L` | Office Basic, fixed level L (0..5) | `SetBasicFanLevel` |
+
+### Operational mode button (2026-11-27)
+
+The physical operational mode button is handled by the **EC itself**: each press changes bits 4, 5 and 7 of `0x751`
+(seen `0x20 → 0x30 → 0xA0` with AvellCC's bit 6 on: `0x60`, `0x70`, `0xE0`) even with no vendor software running, and
+raises an ACPI WMI event: `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` →
+`OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`). Listening needs administrator rights.
+
+AvellCC (service): in curve mode each press switches to the next fan curve (alphabetical, wraps around) and the tray
+shows a notification; in firmware mode it does nothing. Because of this button, handing control back to the firmware
+only clears bit 6 instead of restoring the old byte.
 
 ### Mechanisms this EC ignores (kept in the code for other models)
 

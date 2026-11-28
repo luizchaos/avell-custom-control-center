@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private bool _reallyClose;
     private bool _polling;
     private bool _loadingUi;
+    private int? _lastModeSwitch;
 
     public event Action<ControlStatus?>? StatusUpdated;
 
@@ -141,12 +142,21 @@ public partial class MainWindow : Window
             CurveCombo.SelectedItem = _curves.FirstOrDefault(c => c.Name == _settings.CurveName) ?? _curves.FirstOrDefault();
             LoadEditor(CurveCombo.SelectedItem as FanCurve);
             if (_settings.Keyboard is { } kb) LoadKeyboard(kb);
+            LoadKeyboardProfiles();
             UpdateModeHelp();
         }
         finally
         {
             _loadingUi = false;
         }
+    }
+
+    private void LoadKeyboardProfiles()
+    {
+        if (_settings is null) return;
+        KbProfileCombo.ItemsSource = _settings.KeyboardProfiles.Select(p => p.Name).ToList();
+        KbProfileCombo.SelectedItem = _settings.KeyboardProfile;
+        if (_settings.KeyboardProfile is null) KbProfileCombo.Text = "";
     }
 
     // ------------------------------------------------------------------ status
@@ -161,6 +171,8 @@ public partial class MainWindow : Window
             ShowStatus(_status);
             StatusUpdated?.Invoke(_status);
             if (_settings is null) await InitAsync();
+            else if (_lastModeSwitch is { } seen && _status.ModeSwitchCount != seen) await ReloadSettingsAsync();   // mode button changed the curve
+            _lastModeSwitch = _status.ModeSwitchCount;
         }
         catch (Exception ex) when (ex is ServiceUnavailableException or ServiceException)
         {
@@ -425,11 +437,11 @@ public partial class MainWindow : Window
         UpdateKbButtons();
     }
 
-    private async void ApplyKeyboard_Click(object sender, RoutedEventArgs e)
+    private KeyboardSettings BuildKeyboardSettings()
     {
         var mode = KbMode;
         var count = mode switch { "static" => 1, "zones" => 4, "effect" => 4, _ => 1 };
-        var settings = new KeyboardSettings
+        return new KeyboardSettings
         {
             Mode = mode,
             Colors = _kbColors.Take(count).ToArray(),
@@ -438,7 +450,69 @@ public partial class MainWindow : Window
             Effect = (string?)KbEffectCombo.SelectedItem ?? nameof(Ite8291.Effect.Wave),
             Direction = (string)((ComboBoxItem)KbDirectionCombo.SelectedItem).Tag,
         };
-        await Run(async () => { _settings = await _client.SetKeyboardAsync(settings); });
+    }
+
+    private async void ApplyKeyboard_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = BuildKeyboardSettings();
+        await Run(async () =>
+        {
+            _settings = await _client.SetKeyboardAsync(settings);   // manual change: no profile selected anymore
+            _loadingUi = true;
+            try { LoadKeyboardProfiles(); }
+            finally { _loadingUi = false; }
+        });
+    }
+
+    // ------------------------------------------------------------------ keyboard profiles
+
+    /// <summary>Picking a profile from the list applies it right away.</summary>
+    private async void KbProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingUi || KbProfileCombo.SelectedItem is not string name) return;
+        await Run(async () =>
+        {
+            _settings = await _client.ApplyKeyboardProfileAsync(name);
+            if (_settings.Keyboard is { } kb) LoadKeyboard(kb);
+        });
+    }
+
+    private async void SaveKbProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var name = KbProfileCombo.Text.Trim();
+        if (name.Length == 0)
+        {
+            MessageBox.Show(this, Loc.T("kb.profileNameMissing"), "AvellCC", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (_settings?.FindKeyboardProfile(name) is not null &&
+            MessageBox.Show(this, Loc.T("kb.profileOverwrite", name), "AvellCC", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        var profile = new KeyboardProfile { Name = name, Keyboard = BuildKeyboardSettings() };
+        await Run(async () =>
+        {
+            profile.Validate();   // clear error before reaching the service
+            _settings = await _client.SaveKeyboardProfileAsync(profile);
+            _settings = await _client.ApplyKeyboardProfileAsync(profile.Name);   // what you save is what you see
+            _loadingUi = true;
+            try { LoadKeyboardProfiles(); }
+            finally { _loadingUi = false; }
+        });
+    }
+
+    private async void DeleteKbProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var name = (KbProfileCombo.SelectedItem as string) ?? KbProfileCombo.Text.Trim();
+        if (_settings?.FindKeyboardProfile(name) is not { } profile) return;
+        if (MessageBox.Show(this, Loc.T("kb.profileDeleteConfirm", profile.Name), "AvellCC", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        await Run(async () =>
+        {
+            _settings = await _client.DeleteKeyboardProfileAsync(profile.Name);
+            _loadingUi = true;
+            try { LoadKeyboardProfiles(); }
+            finally { _loadingUi = false; }
+        });
     }
 
     // ------------------------------------------------------------------ settings
