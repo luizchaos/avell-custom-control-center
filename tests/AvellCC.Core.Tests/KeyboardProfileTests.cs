@@ -71,4 +71,36 @@ public class KeyboardProfileTests
 
     [Fact]
     public void Cycle_with_no_curves_returns_null() => Assert.Null(Cycle.Next([], "x"));
+
+    [Theory]
+    [InlineData("Music", Ite8291.Effect.Wave)]       // saved by older versions: falls back
+    [InlineData("starspark", Ite8291.Effect.Wave)]
+    [InlineData("Breathing", Ite8291.Effect.Breathing)]
+    [InlineData("mix", Ite8291.Effect.Mix)]
+    public void Unsupported_effects_fall_back_to_wave(string effect, Ite8291.Effect expected) =>
+        Assert.Equal(expected, new KeyboardSettings { Mode = "effect", Effect = effect, Colors = ["FF0000"] }.EffectiveEffect);
+
+    [Fact]
+    public void New_settings_only_accept_four_zone_effects()
+    {
+        Assert.Throws<ArgumentException>(() => new KeyboardSettings { Mode = "effect", Effect = "Ripple", Colors = ["FF0000"] }.ValidateFourZone());
+        new KeyboardSettings { Mode = "effect", Effect = "Flash", Colors = ["FF0000"] }.ValidateFourZone();
+        new KeyboardSettings { Mode = "static", Effect = "Music", Colors = ["FF0000"] }.ValidateFourZone();   // effect ignored outside effect mode
+    }
+
+    [Fact]
+    public void Old_settings_without_the_mode_button_option_keep_it_on()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "avellcc-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "settings.json"), """{ "fanMode": "curve", "curveName": "balanced" }""");
+            Assert.True(new SettingsStore(dir).Load().ModeButtonCyclesCurves);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

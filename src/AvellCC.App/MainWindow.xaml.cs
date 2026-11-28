@@ -59,7 +59,7 @@ public partial class MainWindow : Window
         GpuGrid.ItemsSource = _gpu;
         _cpu.CollectionChanged += (_, _) => DrawChart();
         _gpu.CollectionChanged += (_, _) => DrawChart();
-        KbEffectCombo.ItemsSource = Enum.GetNames<Ite8291.Effect>().Where(n => n != nameof(Ite8291.Effect.UserMode)).ToArray();
+        KbEffectCombo.ItemsSource = Ite8291.FourZoneEffects.Select(e => e.ToString()).ToArray();   // only effects that work on 4 zones
         KbEffectCombo.SelectedItem = nameof(Ite8291.Effect.Wave);
         KbModeCombo.SelectedIndex = 0;
         KbDirectionCombo.SelectedIndex = 0;
@@ -143,6 +143,7 @@ public partial class MainWindow : Window
             LoadEditor(CurveCombo.SelectedItem as FanCurve);
             if (_settings.Keyboard is { } kb) LoadKeyboard(kb);
             LoadKeyboardProfiles();
+            ModeButtonCheck.IsChecked = _settings.ModeButtonCyclesCurves;
             UpdateModeHelp();
         }
         finally
@@ -400,7 +401,7 @@ public partial class MainWindow : Window
         for (var i = 0; i < _kbColors.Length; i++) _kbColors[i] = i < kb.Colors.Length ? kb.Colors[i] : kb.Colors.LastOrDefault() ?? "FFFFFF";
         KbBrightness.Value = kb.Brightness;
         KbSpeed.Value = kb.Speed;
-        KbEffectCombo.SelectedItem = kb.Effect;
+        KbEffectCombo.SelectedItem = kb.EffectiveEffect.ToString();   // removed effects show as Wave
         foreach (ComboBoxItem item in KbDirectionCombo.Items) if ((string)item.Tag == kb.Direction) KbDirectionCombo.SelectedItem = item;
         UpdateKbButtons();
     }
@@ -521,6 +522,13 @@ public partial class MainWindow : Window
     {
         if (_loadingUi || LanguageCombo.SelectedItem is not LanguageInfo language) return;
         Loc.Instance.Load(language.Code, remember: true);
+    }
+
+    private async void ModeButtonCheck_Click(object sender, RoutedEventArgs e)
+    {
+        var enabled = ModeButtonCheck.IsChecked == true;
+        await Run(async () => { _settings = await _client.SetModeButtonAsync(enabled); });
+        ModeButtonCheck.IsChecked = _settings?.ModeButtonCyclesCurves ?? enabled;
     }
 
     private void StartupCheck_Click(object sender, RoutedEventArgs e)

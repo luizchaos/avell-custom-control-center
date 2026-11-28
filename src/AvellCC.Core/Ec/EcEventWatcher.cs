@@ -8,7 +8,10 @@ namespace AvellCC.Core.Ec;
 /// </summary>
 public static class EcEvents
 {
-    /// <summary>Operational mode button (vendor "OSD_FanModeSwitch"). Captured on the A65 LIV: 0xAB per press.</summary>
+    /// <summary>
+    /// Vendor "OSD_FanModeSwitch". On the A65 LIV it is NOT a reliable button signal: it also arrives in bursts of three
+    /// (+4 s, +9 s) with no press, and real presses show up as a change of 0x751 instead. AvellCC only logs it.
+    /// </summary>
     public const uint ModeButton = 0xAB;
 }
 

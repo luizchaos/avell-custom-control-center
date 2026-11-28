@@ -122,6 +122,8 @@
   "kb.apply": "Aplicar no teclado",
 
   "settings.startup": "Abrir o AvellCC na bandeja ao entrar no Windows",
+  "settings.modeButton": "Botão de modo operacional troca a curva das ventoinhas",
+  "settings.modeButtonHelp": "Com uma curva do AvellCC ativa, cada aperto no botão de modo do notebook passa para a próxima curva e mostra um aviso. Desligue se a curva mudar sem você apertar.",
   "settings.startupHelp": "O serviço AvellCC inicia sozinho com o Windows e controla as ventoinhas mesmo com esta janela fechada.",
   "settings.language": "Idioma",
   "settings.languageHelp": "Para adicionar um idioma, copie Languages\\en.json para Languages\\<código>.json (ex.: es.json) e traduza os valores.",

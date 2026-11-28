@@ -17,6 +17,8 @@ public sealed record AppSettings
     [JsonPropertyName("keyboardProfiles")] public KeyboardProfile[] KeyboardProfiles { get; init; } = [];
     /// <summary>Profile last applied; null after a manual change.</summary>
     [JsonPropertyName("keyboardProfile")] public string? KeyboardProfile { get; init; }
+    /// <summary>In curve mode, the operational mode button switches to the next curve.</summary>
+    [JsonPropertyName("modeButtonCyclesCurves")] public bool ModeButtonCyclesCurves { get; init; } = true;
 
     public const int MaxKeyboardProfiles = 50;
 

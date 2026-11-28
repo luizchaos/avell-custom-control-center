@@ -254,6 +254,12 @@
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
+                            <CheckBox x:Name="ModeButtonCheck" Content="{l:Tr settings.modeButton}" Click="ModeButtonCheck_Click"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0" Text="{l:Tr settings.modeButtonHelp}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
                             <TextBlock Text="{l:Tr settings.about}" FontWeight="SemiBold" Margin="0,0,0,6"/>
                             <TextBlock x:Name="AboutText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
                         </StackPanel>

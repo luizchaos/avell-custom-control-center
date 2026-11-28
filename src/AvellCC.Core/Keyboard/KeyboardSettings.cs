@@ -26,6 +26,21 @@ public sealed record KeyboardSettings
         if (Colors.Length > Ite8291.MaxColorSlots) throw new ArgumentException($"At most {Ite8291.MaxColorSlots} colors.");
     }
 
+    /// <summary>
+    /// Effect actually sent to the 4-zone keyboard: settings or profiles saved with an effect that does not work there
+    /// (older versions offered all of them) fall back to Wave instead of failing.
+    /// </summary>
+    public Ite8291.Effect EffectiveEffect =>
+        Enum.TryParse<Ite8291.Effect>(Effect, true, out var e) && Ite8291.FourZoneEffects.Contains(e) ? e : Ite8291.Effect.Wave;
+
+    /// <summary>For new settings coming from the UI: only effects that work on the 4-zone keyboard.</summary>
+    public void ValidateFourZone()
+    {
+        Validate();
+        if (Mode == "effect" && !Ite8291.FourZoneEffects.Contains(Enum.Parse<Ite8291.Effect>(Effect, true)))
+            throw new ArgumentException($"The effect {Effect} does not work on the 4-zone keyboard.");
+    }
+
     public static Rgb ParseColor(string hex)
     {
         hex = hex.TrimStart('#');
@@ -45,7 +60,7 @@ public sealed record KeyboardSettings
             case "static": kb.Static(colors[0], Brightness, save); break;
             case "zones": kb.Zones(colors, Brightness, save); break;
             case "effect":
-                kb.Effect(Enum.Parse<Ite8291.Effect>(Effect, true), Speed, Brightness,
+                kb.Effect(EffectiveEffect, Speed, Brightness,
                           Enum.Parse<Ite8291.Direction>(Direction, true), colors.Length > 0 ? colors : null, save);
                 break;
         }

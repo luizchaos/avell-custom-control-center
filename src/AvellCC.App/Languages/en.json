@@ -122,6 +122,8 @@
   "kb.apply": "Apply to keyboard",
 
   "settings.startup": "Open AvellCC in the tray when signing in to Windows",
+  "settings.modeButton": "Operational mode button changes the fan curve",
+  "settings.modeButtonHelp": "With an AvellCC curve active, each press of the laptop's mode button switches to the next curve and shows a notice. Turn it off if the curve changes when you did not press it.",
   "settings.startupHelp": "The AvellCC service starts with Windows and controls the fans even with this window closed.",
   "settings.language": "Language",
   "settings.languageHelp": "To add a language, copy Languages\\en.json to Languages\\<code>.json (e.g. es.json) and translate the values.",

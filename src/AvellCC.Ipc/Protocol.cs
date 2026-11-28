@@ -32,6 +32,7 @@ public static class Protocol
         public const string SaveKeyboardProfile = "saveKeyboardProfile";
         public const string DeleteKeyboardProfile = "deleteKeyboardProfile";
         public const string ApplyKeyboardProfile = "applyKeyboardProfile";
+        public const string SetModeButton = "setModeButton";
         /// <summary>Simulation only: behaves as if the operational mode button was pressed.</summary>
         public const string PressModeButton = "pressModeButton";
     }
@@ -44,6 +45,8 @@ public sealed record Response(int Id, bool Ok, JsonElement? Result = null, strin
 public sealed record SetFanModeArgs(string Mode, string? CurveName);
 
 public sealed record NameArgs(string Name);
+
+public sealed record EnabledArgs(bool Enabled);
 
 public sealed record ServiceInfo(int ProtocolVersion, string Version, bool Simulated, string Machine);
 

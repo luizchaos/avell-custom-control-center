@@ -112,27 +112,34 @@ the EC itself writes duty 200/200 and the fans reach **5543 / 5586 RPM** within 
 
 ### Operational mode button (2026-11-27)
 
-The physical operational mode button is seen by the EC, which reacts in **one of two ways** (both observed on the
-A65 LIV, sometimes switching right after the AvellCC service restarts; the trigger is not known):
+What was measured on the A65 LIV (service log with every EC event and every `0x751` change, plus filmed tests):
 
-| Behavior | What happens on a press |
-|---|---|
-| **A — event** | ACPI WMI event `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` → `OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`, which then writes the mode to `0x751` itself). `0x751` does not change |
-| **B — EC cycles by itself** | no event; the EC steps its operational mode in `0x751` bits 4, 5, 7: `0x30 → 0x20 → 0xA0 → 0x30…` (with AvellCC's bit 6: `0x70 → 0x60 → 0xE0`) |
+- **A real press** makes the EC step its operational mode in `0x751` bits 4, 5, 7:
+  `0x30 → 0x20 → 0xA0 → 0x30…` (with AvellCC's bit 6: `0x70 → 0x60 → 0xE0`). One press = one step, every time.
+- **The WMI event** `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` →
+  `OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`) is **not a reliable button signal**: the EC also sends it in
+  bursts of three (+4 s, +9 s, sometimes ending with `0x00`) with nobody touching the laptop, without changing `0x751`.
+  Using it made the curve "change by itself" three times.
+- **Do not write the mode bits back**: the EC flips them again ~6 s later (seen every 6 s while AvellCC tried it),
+  which looks like more presses.
+- The vendor's "app present" flags (`0x7A6` bit 0 for fans, `0x748` bit 0 for the light bar) were set during all of
+  this; they did not change the behavior. The EC also sends `0xA7` + `0x43` when `0x751` bit 6 is cleared or set.
 
-- The vendor's "app present" flags (`0x7A6` bit 0 for fans, `0x748` bit 0 for the light bar) were both set while
-  behavior B happened, so they are not the switch.
-- **Do not write the mode bits back** after a B press: the EC flips them again ~6 s later (seen every 6 s while
-  AvellCC tried it), which looks like more presses.
-- Listening to WMI events needs administrator rights. The EC also sends `0xA7` and `0x43` when the app starts
-  (probably the dGPU waking up for DXGI); they are ignored.
+AvellCC (service), in curve mode with *Settings → Operational mode button changes the fan curve* on (default): a
+change of `0x751` bits 4/5/7 that AvellCC did not make (checked every 2 s) = one press → next fan curve (alphabetical,
+wraps around), and the app shows its own on-screen notice (Windows balloons are hidden when notifications / Do not
+disturb are off). The EC's new operational mode is kept. Firmware mode or option off: nothing. `0xAB` and every other EC
+event is only logged (Windows event log, Application, source `AvellCC.Service`, together with every `0x751` change).
+Because the button changes `0x751`, handing control back to the firmware only clears bit 6 instead of restoring the
+old byte.
 
-AvellCC (service), in curve mode: an `0xAB` event **or** a change in `0x751` bits 4/5/7 that AvellCC did not make
-(checked every 2 s) = one press → next fan curve (alphabetical, wraps around), and the app shows its own on-screen
-notice (Windows balloons are hidden when notifications / Do not disturb are off). A `0x751` change within 3 s of a
-handled event counts as the same press. Firmware mode: nothing. Every EC event and every `0x751` change is written to
-the Windows event log (Application, source `AvellCC.Service`). Because the button changes `0x751`, handing control
-back to the firmware only clears bit 6 instead of restoring the old byte.
+### Keyboard effects on the 4-zone keyboard (filmed 2026-11-27)
+
+Work: Static, Breathing, Wave, Reactive (animates), Rainbow (static rainbow across the zones), Flash, Mix.
+Leave the previous lighting unchanged (per-key effects, or need the vendor app, e.g. Music): Ripple, Marquee,
+Raindrop, Stack, Impact, Aurora, Neon, Spark, Gaming (fixed purple only), RippleO, Alphabet, StarSpark, StarHitting,
+Thinking, Music. The app only offers the working ones; saved settings with another effect fall back to Wave
+(`Ite8291.FourZoneEffects`, `KeyboardSettings.EffectiveEffect`). The CLI still accepts all of them for experiments.
 
 ### Mechanisms this EC ignores (kept in the code for other models)
 
