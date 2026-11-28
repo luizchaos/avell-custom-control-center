@@ -92,6 +92,13 @@
   "fans.savedInactive": " Use Aplicar modo para ativá-la.",
   "fans.errHysteresis": "A histerese precisa ser um número inteiro.",
 
+  "kb.profiles": "Perfis",
+  "kb.profilesHelp": "Escolha um perfil para aplicá-lo. Para criar um, ajuste a iluminação abaixo, digite um nome aqui e clique em Salvar perfil (salvar com um nome existente substitui o perfil).",
+  "kb.profileSave": "Salvar perfil",
+  "kb.profileDelete": "Excluir",
+  "kb.profileNameMissing": "Digite um nome para o perfil primeiro.",
+  "kb.profileOverwrite": "Substituir o perfil '{0}' pelas configurações atuais?",
+  "kb.profileDeleteConfirm": "Excluir o perfil '{0}'?",
   "kb.title": "Iluminação do teclado (4 zonas)",
   "kb.mode": "Modo",
   "kb.mode.static": "Cor única",
@@ -115,6 +122,8 @@
   "kb.apply": "Aplicar no teclado",
 
   "settings.startup": "Abrir o AvellCC na bandeja ao entrar no Windows",
+  "settings.modeButton": "Botão de modo operacional troca a curva das ventoinhas",
+  "settings.modeButtonHelp": "Com uma curva do AvellCC ativa, cada aperto no botão de modo do notebook passa para a próxima curva e mostra um aviso. Desligue se a curva mudar sem você apertar.",
   "settings.startupHelp": "O serviço AvellCC inicia sozinho com o Windows e controla as ventoinhas mesmo com esta janela fechada.",
   "settings.language": "Idioma",
   "settings.languageHelp": "Para adicionar um idioma, copie Languages\\en.json para Languages\\<código>.json (ex.: es.json) e traduza os valores.",
@@ -123,6 +132,9 @@
 
   "tray.open": "Abrir",
   "tray.fans": "Ventoinhas",
+  "osd.fanCurve": "Curva das ventoinhas",
+  "tray.keyboard": "Perfis do teclado",
+  "tray.noProfiles": "(nenhum perfil ainda)",
   "tray.firmware": "Firmware (padrão do notebook)",
   "tray.curve": "Curva: {0}",
   "tray.exit": "Sair",

@@ -8,7 +8,10 @@ built on the **Uniwill** (TongFang-family) platform.
 - **Fan curves applied in software** — this EC ignores custom curves in firmware, so a Windows service reads the EC
   temperatures every 2 s and sets the fan duty directly, with hysteresis, smooth slow-down, a 25 % minimum,
   100 % emergency override, and automatic hand-back to the firmware on stop, sleep or error.
-- **Keyboard RGB (4 zones)** — single color, one color per zone, or firmware effects with your own palette.
+- **Keyboard RGB (4 zones)** — single color, one color per zone, or firmware effects with your own palette;
+  save them as named **profiles** and switch from the app or the tray.
+- **Operational mode button** — with an AvellCC curve active, the laptop's mode button cycles through your fan
+  curves and shows a notification.
 - **Dashboard** — CPU and per-GPU usage rings with EC temperatures, memory, disk activity, VRAM, drive space,
   network throughput, power plan / mode and battery (read from Windows counters, no admin), plus *Free up memory* and
   *Clean up disk* buttons (what they really do: [docs/CLEANUP.md](docs/CLEANUP.md)).

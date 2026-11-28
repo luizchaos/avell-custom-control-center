@@ -9,6 +9,9 @@ var simulate = args.Contains("--simulate");
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddWindowsService(o => o.ServiceName = "AvellCC");
+// Windows event log (Application, source "AvellCC"): our own messages from Information up
+// (fan mode changes, mode button, profiles), everything else from Warning up.
+builder.Logging.AddFilter<Microsoft.Extensions.Logging.EventLog.EventLogLoggerProvider>("AvellCC", LogLevel.Information);
 builder.Services.AddSingleton(new HubOptions(simulate));
 builder.Services.AddSingleton<ControlHub>();
 builder.Services.AddHostedService<ControlWorker>();

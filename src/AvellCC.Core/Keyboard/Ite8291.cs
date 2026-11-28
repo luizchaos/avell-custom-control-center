@@ -31,6 +31,13 @@ public static class Ite8291
         StarSpark = 0x18, StarHitting = 0x19, Thinking = 0x21, Music = 0x22, UserMode = 0x33,
     }
 
+    /// <summary>
+    /// Effects that visibly work on the 4-zone keyboard (A65 LIV, filmed 2026-11-27). The others are meant for per-key
+    /// keyboards or need the vendor app running (Music); here they leave the previous lighting unchanged.
+    /// </summary>
+    public static readonly Effect[] FourZoneEffects =
+        [Effect.Static, Effect.Breathing, Effect.Wave, Effect.Reactive, Effect.Rainbow, Effect.Flash, Effect.Mix];
+
     public enum Direction : byte { LeftToRight = 0, RightToLeft = 1, BottomToTop = 2, TopToBottom = 3, OnKeyPress = 4 }
 
     /// <summary>UI level 0..4 → firmware value (max 0x32).</summary>

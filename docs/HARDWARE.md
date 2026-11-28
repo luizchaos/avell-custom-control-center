@@ -80,7 +80,8 @@ enable : write duty to 0x1804 (fan 1) and 0x1809 (fan 2), 0..200
          set 0x751 bit 6 ("full fan mode", 0x40)
          rewrite the duty a few times right away (before the EC finishes ramping to maximum)
 keep   : rewrite the duty on change, plus a 30 s keep-alive
-disable: restore 0x751 to its original value (0x00) → the firmware resumes immediately
+disable: clear only 0x751 bit 6 → the firmware resumes immediately
+         (the other bits belong to the EC / operational mode button, see below)
 ```
 
 Safety rules (from tuxedo-drivers, enforced by AvellCC): **never write 0** (0 = 30 % for 3 minutes, then stop;
@@ -108,6 +109,37 @@ the EC itself writes duty 200/200 and the fans reach **5543 / 5586 RPM** within 
 | `0x40` | Performance / Turbo / Benchmark / Fan Boost (bit 6) | `SetFanMode(1/4)`, `SetFanBoost` |
 | `0xA0` | Office Advanced / Standard (caps the fans at the T5 speed, ~60 %) | `SetFanMode(2/3)` |
 | `0x80 + L` | Office Basic, fixed level L (0..5) | `SetBasicFanLevel` |
+
+### Operational mode button (2026-11-27)
+
+What was measured on the A65 LIV (service log with every EC event and every `0x751` change, plus filmed tests):
+
+- **A real press** makes the EC step its operational mode in `0x751` bits 4, 5, 7:
+  `0x30 → 0x20 → 0xA0 → 0x30…` (with AvellCC's bit 6: `0x70 → 0x60 → 0xE0`). One press = one step, every time.
+- **The WMI event** `root\WMI AcpiTest_EventULong`, `ULong = 0xAB` (vendor `WMIEC.WMIHandleEvent` →
+  `OSD_FanModeSwitch` → `MyFanCtrl.ModeSwitchChanged`) is **not a reliable button signal**: the EC also sends it in
+  bursts of three (+4 s, +9 s, sometimes ending with `0x00`) with nobody touching the laptop, without changing `0x751`.
+  Using it made the curve "change by itself" three times.
+- **Do not write the mode bits back**: the EC flips them again ~6 s later (seen every 6 s while AvellCC tried it),
+  which looks like more presses.
+- The vendor's "app present" flags (`0x7A6` bit 0 for fans, `0x748` bit 0 for the light bar) were set during all of
+  this; they did not change the behavior. The EC also sends `0xA7` + `0x43` when `0x751` bit 6 is cleared or set.
+
+AvellCC (service), in curve mode with *Settings → Operational mode button changes the fan curve* on (default): a
+change of `0x751` bits 4/5/7 that AvellCC did not make (checked every 2 s) = one press → next fan curve (alphabetical,
+wraps around), and the app shows its own on-screen notice (Windows balloons are hidden when notifications / Do not
+disturb are off). The EC's new operational mode is kept. Firmware mode or option off: nothing. `0xAB` and every other EC
+event is only logged (Windows event log, Application, source `AvellCC.Service`, together with every `0x751` change).
+Because the button changes `0x751`, handing control back to the firmware only clears bit 6 instead of restoring the
+old byte.
+
+### Keyboard effects on the 4-zone keyboard (filmed 2026-11-27)
+
+Work: Static, Breathing, Wave, Reactive (animates), Rainbow (static rainbow across the zones), Flash, Mix.
+Leave the previous lighting unchanged (per-key effects, or need the vendor app, e.g. Music): Ripple, Marquee,
+Raindrop, Stack, Impact, Aurora, Neon, Spark, Gaming (fixed purple only), RippleO, Alphabet, StarSpark, StarHitting,
+Thinking, Music. The app only offers the working ones; saved settings with another effect fall back to Wave
+(`Ite8291.FourZoneEffects`, `KeyboardSettings.EffectiveEffect`). The CLI still accepts all of them for experiments.
 
 ### Mechanisms this EC ignores (kept in the code for other models)
 

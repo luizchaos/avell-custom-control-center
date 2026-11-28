@@ -92,6 +92,13 @@
   "fans.savedInactive": " Use Apply mode to activate it.",
   "fans.errHysteresis": "Hysteresis must be a whole number.",
 
+  "kb.profiles": "Profiles",
+  "kb.profilesHelp": "Pick a profile to apply it. To create one, set up the lighting below, type a name here and click Save profile (saving an existing name replaces it).",
+  "kb.profileSave": "Save profile",
+  "kb.profileDelete": "Delete",
+  "kb.profileNameMissing": "Type a name for the profile first.",
+  "kb.profileOverwrite": "Replace the profile '{0}' with the current settings?",
+  "kb.profileDeleteConfirm": "Delete the profile '{0}'?",
   "kb.title": "Keyboard lighting (4 zones)",
   "kb.mode": "Mode",
   "kb.mode.static": "Single color",
@@ -115,6 +122,8 @@
   "kb.apply": "Apply to keyboard",
 
   "settings.startup": "Open AvellCC in the tray when signing in to Windows",
+  "settings.modeButton": "Operational mode button changes the fan curve",
+  "settings.modeButtonHelp": "With an AvellCC curve active, each press of the laptop's mode button switches to the next curve and shows a notice. Turn it off if the curve changes when you did not press it.",
   "settings.startupHelp": "The AvellCC service starts with Windows and controls the fans even with this window closed.",
   "settings.language": "Language",
   "settings.languageHelp": "To add a language, copy Languages\\en.json to Languages\\<code>.json (e.g. es.json) and translate the values.",
@@ -123,6 +132,9 @@
 
   "tray.open": "Open",
   "tray.fans": "Fans",
+  "osd.fanCurve": "Fan curve",
+  "tray.keyboard": "Keyboard profiles",
+  "tray.noProfiles": "(no profiles yet)",
   "tray.firmware": "Firmware (laptop default)",
   "tray.curve": "Curve: {0}",
   "tray.exit": "Exit",

@@ -126,6 +126,9 @@ Last line of defence: the CPU throttles itself at Tjmax, and the EC has its own 
 | Cleanup buttons | *Free up memory* → pipe `freeMemory` → service trims all working sets (admin; standby cache untouched; once per 20 s). *Clean up disk* → opens Windows Storage settings / `cleanmgr.exe` as the user. Rationale: [CLEANUP.md](CLEANUP.md) |
 | Icon | drawn in code (`App/AppIcon.cs`): exe icon `Assets\AvellCC.ico` (generated with `AvellCC.exe --export-icon`), tray icon = same drawing + status dot |
 | Localization | `Languages\<code>.json` next to the exe; see `src/AvellCC.App/Languages/README.md` |
+| Keyboard profiles | named presets stored in `settings.json` (`keyboardProfiles`, active one in `keyboardProfile`); pipe commands `saveKeyboardProfile`, `deleteKeyboardProfile`, `applyKeyboardProfile`; Keyboard tab and tray submenu |
+| Mode button | service: an EC-made change of `0x751` bits 4/5/7 (polled every 2 s) = one press → in curve mode next curve and `status.modeSwitchCount++`; the app shows its own on-screen notice (`OsdPopup`) when the count changes. Firmware mode or `modeButtonCyclesCurves = false` (Settings tab, `setModeButton`): ignored. The WMI event `0xAB` is only logged (`EcEventWatcher`): the EC also sends it in bursts with no press. `pressModeButton` simulates a press in `--simulate`. Details: HARDWARE.md |
+| Service log | Windows event log, Application, source `AvellCC.Service`: AvellCC messages from Information up (fan mode, mode button, EC events, `0x751` changes), others from Warning |
 
 **Pipe security:** any signed-in user can change the curve and the RGB, but cannot go past the limits the service
 validates (25 % minimum, last point ≤ 90 °C with ≥ 80 %, emergency override). That is acceptable for a personal laptop;

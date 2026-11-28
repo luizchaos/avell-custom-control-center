@@ -74,6 +74,16 @@ public sealed class DirectFanServiceTests : IDisposable
     }
 
     [Fact]
+    public void Disable_keeps_the_operational_mode_bits_the_ec_changed_meanwhile()
+    {
+        var service = Service();
+        service.Enable(70, 70);
+        _ec.Seed(EcAddresses.FanControl, [0x70]);   // mode button pressed: EC set bits 4-5, our bit 6 still on
+        service.Disable();
+        Assert.Equal(0x30, _ec.Read(EcAddresses.FanControl));
+    }
+
+    [Fact]
     public void Refuses_when_vendor_is_running_or_full_fan_already_on()
     {
         Assert.Throws<VendorRunningException>(() => Service(() => ["GCUBridge"]).Enable(50, 50));

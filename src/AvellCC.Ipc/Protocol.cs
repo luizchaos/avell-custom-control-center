@@ -10,8 +10,8 @@ namespace AvellCC.Ipc;
 public static class Protocol
 {
     public const string PipeName = "AvellCC.Control";
-    /// <summary>2: adds freeMemory.</summary>
-    public const int Version = 2;
+    /// <summary>2: freeMemory. 3: keyboard profiles, mode button (status.modeSwitchCount), pressModeButton (simulation).</summary>
+    public const int Version = 3;
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -29,6 +29,12 @@ public static class Protocol
         public const string SetFanMode = "setFanMode";
         public const string SetKeyboard = "setKeyboard";
         public const string FreeMemory = "freeMemory";
+        public const string SaveKeyboardProfile = "saveKeyboardProfile";
+        public const string DeleteKeyboardProfile = "deleteKeyboardProfile";
+        public const string ApplyKeyboardProfile = "applyKeyboardProfile";
+        public const string SetModeButton = "setModeButton";
+        /// <summary>Simulation only: behaves as if the operational mode button was pressed.</summary>
+        public const string PressModeButton = "pressModeButton";
     }
 }
 
@@ -37,6 +43,10 @@ public sealed record Request(int Id, string Command, JsonElement? Args = null);
 public sealed record Response(int Id, bool Ok, JsonElement? Result = null, string? Error = null);
 
 public sealed record SetFanModeArgs(string Mode, string? CurveName);
+
+public sealed record NameArgs(string Name);
+
+public sealed record EnabledArgs(bool Enabled);
 
 public sealed record ServiceInfo(int ProtocolVersion, string Version, bool Simulated, string Machine);
 

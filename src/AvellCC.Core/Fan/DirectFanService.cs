@@ -111,11 +111,14 @@ public sealed class DirectFanService(IEcAccess ec, EcRegisterBackupStore store, 
         ec.Write(EcAddresses.DirectFan2Duty, b);
     }
 
-    /// <summary>Restores 0x751 to its original value (without bit 6) and verifies. Idempotent.</summary>
+    /// <summary>
+    /// Hands the fans back to the firmware: clears only bit 6 of 0x751 and verifies. Idempotent.
+    /// The other bits belong to the EC: the operational mode button changes them (bits 4, 5 and 7) while AvellCC
+    /// is in control, so restoring the old byte would undo the user's mode choice.
+    /// </summary>
     public void Disable()
     {
-        var target = _originalFanControl ?? (store.HasOriginal ? store.LoadOriginal().Values()[EcAddresses.FanControl] : (byte)0x00);
-        target = (byte)(target & ~EcAddresses.FullFanModeBit);
+        var target = (byte)(ec.Read(EcAddresses.FanControl) & ~EcAddresses.FullFanModeBit);
         for (var attempt = 0; attempt < 3; attempt++)
         {
             ec.Write(EcAddresses.FanControl, target);

@@ -161,6 +161,24 @@
             <!-- ============ KEYBOARD ============ -->
             <TabItem Header="{l:Tr tab.keyboard}" Tag="keyboard">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
+                    <!-- Named presets: pick one to apply it, or type a name and save the settings below -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="{l:Tr kb.profiles}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="KbProfileCombo" IsEditable="True" Margin="0,0,8,0" VerticalContentAlignment="Center"
+                                          SelectionChanged="KbProfile_SelectionChanged"/>
+                                <Button Grid.Column="1" Content="{l:Tr kb.profileSave}" Click="SaveKbProfile_Click"/>
+                                <Button Grid.Column="2" Content="{l:Tr kb.profileDelete}" Style="{StaticResource Secondary}" Margin="0" Click="DeleteKbProfile_Click"/>
+                            </Grid>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0" Text="{l:Tr kb.profilesHelp}"/>
+                        </StackPanel>
+                    </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="{l:Tr kb.title}" FontWeight="SemiBold" Margin="0,0,0,12"/>
@@ -232,6 +250,12 @@
                         <StackPanel>
                             <CheckBox x:Name="StartupCheck" Content="{l:Tr settings.startup}" Click="StartupCheck_Click"/>
                             <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0" Text="{l:Tr settings.startupHelp}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="ModeButtonCheck" Content="{l:Tr settings.modeButton}" Click="ModeButtonCheck_Click"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="22,4,0,0" Text="{l:Tr settings.modeButtonHelp}"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">

@@ -13,12 +13,76 @@ public sealed record AppSettings
     [JsonPropertyName("curveName")] public string CurveName { get; init; } = CurvePresets.Balanced.Name;
     /// <summary>null = the service leaves the keyboard alone.</summary>
     [JsonPropertyName("keyboard")] public KeyboardSettings? Keyboard { get; init; }
+    /// <summary>Named keyboard presets saved by the user.</summary>
+    [JsonPropertyName("keyboardProfiles")] public KeyboardProfile[] KeyboardProfiles { get; init; } = [];
+    /// <summary>Profile last applied; null after a manual change.</summary>
+    [JsonPropertyName("keyboardProfile")] public string? KeyboardProfile { get; init; }
+    /// <summary>In curve mode, the operational mode button switches to the next curve.</summary>
+    [JsonPropertyName("modeButtonCyclesCurves")] public bool ModeButtonCyclesCurves { get; init; } = true;
+
+    public const int MaxKeyboardProfiles = 50;
 
     public void Validate()
     {
         if (FanMode is not ("firmware" or "curve")) throw new ArgumentException($"Invalid fanMode: {FanMode}");
         SettingsStore.ValidateName(CurveName);
         Keyboard?.Validate();
+        if (KeyboardProfiles.Length > MaxKeyboardProfiles) throw new ArgumentException($"At most {MaxKeyboardProfiles} keyboard profiles.");
+        foreach (var p in KeyboardProfiles) p.Validate();
+        var duplicate = KeyboardProfiles.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null) throw new ArgumentException($"Duplicate keyboard profile: {duplicate.Key}");
+    }
+
+    /// <summary>Adds or replaces (same name, ignoring case) a profile.</summary>
+    public AppSettings WithKeyboardProfile(KeyboardProfile profile)
+    {
+        profile.Validate();
+        var others = KeyboardProfiles.Where(p => !p.Name.Equals(profile.Name, StringComparison.OrdinalIgnoreCase));
+        var next = this with { KeyboardProfiles = [.. others, profile] };
+        next = next with { KeyboardProfiles = [.. next.KeyboardProfiles.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)] };
+        next.Validate();
+        return next;
+    }
+
+    public AppSettings WithoutKeyboardProfile(string name)
+    {
+        var profile = FindKeyboardProfile(name) ?? throw new ArgumentException($"Keyboard profile '{name}' not found.");
+        return this with
+        {
+            KeyboardProfiles = [.. KeyboardProfiles.Where(p => p != profile)],
+            KeyboardProfile = string.Equals(KeyboardProfile, profile.Name, StringComparison.OrdinalIgnoreCase) ? null : KeyboardProfile,
+        };
+    }
+
+    public KeyboardProfile? FindKeyboardProfile(string name) =>
+        KeyboardProfiles.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>A named keyboard preset (colors, mode, effect, brightness).</summary>
+public sealed record KeyboardProfile
+{
+    [JsonPropertyName("name")] public string Name { get; init; } = "";
+    [JsonPropertyName("keyboard")] public KeyboardSettings Keyboard { get; init; } = new();
+
+    public void Validate()
+    {
+        var name = Name.Trim();
+        if (name.Length is 0 or > 40 || name != Name || Name.Any(char.IsControl) || Name.IndexOfAny(['"', '\\', '/']) >= 0)
+            throw new ArgumentException($"Invalid profile name: '{Name}' (1 to 40 characters, no leading/trailing spaces, no \" \\ /).");
+        Keyboard.Validate();
+    }
+}
+
+/// <summary>Picks the next item for the operational mode button (wraps around; unknown current → first).</summary>
+public static class Cycle
+{
+    public static string? Next(IReadOnlyList<string> names, string? current)
+    {
+        if (names.Count == 0) return null;
+        var index = -1;
+        for (var i = 0; i < names.Count; i++)
+            if (string.Equals(names[i], current, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+        return names[(index + 1) % names.Count];
     }
 }
 

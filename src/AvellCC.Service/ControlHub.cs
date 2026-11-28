@@ -36,6 +36,12 @@ public sealed class ControlHub : IDisposable
     private readonly IMemoryCleaner _memoryCleaner;
     private readonly object _memoryLock = new();
     private DateTime _lastMemoryClean = DateTime.MinValue;
+    private static readonly TimeSpan ModeButtonDebounce = TimeSpan.FromMilliseconds(400);
+    private EcEventWatcher? _events;
+    private DateTime _lastModeButton = DateTime.MinValue;
+    private int _modeSwitchCount;
+    private string? _modeSwitchCurve;
+    private int _lastFanControl = -1;
 
     public ControlHub(HubOptions options, ILogger<ControlHub> log)
     {
@@ -55,10 +61,12 @@ public sealed class ControlHub : IDisposable
             : () => HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePage4Zone);
     }
 
-    public ControlStatus Status => _loop.Status;
+    /// <summary>Loop status plus the mode button counter (the UI notifies when it changes).</summary>
+    public ControlStatus Status => _loop.Status with { ModeSwitchCount = _modeSwitchCount, ModeSwitchCurve = _modeSwitchCurve };
 
     public void Initialize()
     {
+        StartEcEvents();
         _store.EnsurePresets();
         try
         {
@@ -78,6 +86,19 @@ public sealed class ControlHub : IDisposable
     public ControlStatus Tick()
     {
         var status = _loop.Tick();
+        if (!_options.Simulate)
+        {
+            // 0x751 also holds the EC's operational mode (bits 4, 5, 7), changed by the mode button: log every change
+            var fanControl = ReadSafe(EcAddresses.FanControl);
+            if (fanControl != _lastFanControl && fanControl >= 0)
+            {
+                if (_lastFanControl < 0) _log.LogInformation("0x751 = 0x{After:X2} at start.", fanControl);
+                else _log.LogInformation("0x751: 0x{Before:X2} -> 0x{After:X2}.", _lastFanControl, fanControl);
+                if (_lastFanControl >= 0 && ((fanControl ^ _lastFanControl) & EcAddresses.OperationalModeMask) != 0)
+                    fanControl = OnOperationalModeChangedByEc(_lastFanControl, fanControl);
+                _lastFanControl = fanControl;
+            }
+        }
         if (status.State is LoopState.Error or LoopState.Emergency)
             _log.LogWarning("Fans: {State} — {Message}", status.State, status.Message);
         return status;
@@ -99,7 +120,140 @@ public sealed class ControlHub : IDisposable
     public void Shutdown()
     {
         _log.LogInformation("Stopping: handing the fans back to the firmware.");
+        _events?.Dispose();
+        _events = null;
         _loop.Shutdown();
+    }
+
+    // ------------------------------------------------------------------ operational mode button
+
+    private void StartEcEvents()
+    {
+        if (_options.Simulate) return;   // simulation: pressModeButton command instead
+        try
+        {
+            _events = new EcEventWatcher();
+            _events.EventReceived += code =>
+            {
+                // EC events are rare (Fn keys, mode button); logging every one documents codes we do not handle yet
+                var fanControl = ReadSafe(EcAddresses.FanControl);
+                _log.LogInformation("EC event 0x{Code:X2} (0x751 = 0x{FanControl:X2}).", code, fanControl);
+                // 0xAB is only logged: on the A65 LIV the EC also sends it in bursts of three (≈4 s apart) when nobody
+                // pressed anything, while real presses always change 0x751 (handled in Tick). See HARDWARE.md.
+            };
+            _events.Start();
+            _log.LogInformation("Listening for EC events (logged only; the mode button is detected through 0x751).");
+        }
+        catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        {
+            _log.LogWarning("EC events unavailable ({Message}); the mode button will not switch curves.", ex.Message);
+            _events?.Dispose();
+            _events = null;
+        }
+    }
+
+    /// <summary>
+    /// How AvellCC detects the operational mode button: each real press makes the EC step its operational mode in
+    /// 0x751 (bits 4, 5, 7), which AvellCC never writes. In curve mode that means next curve. (The 0xAB WMI event is not
+    /// used: the EC also sends it in bursts of three without any press.)
+    /// The EC's new mode is left alone: writing the old mode back makes the EC flip it again a few seconds later,
+    /// which would look like more presses (seen on the A65 LIV). Returns the value now in 0x751.
+    /// </summary>
+    private int OnOperationalModeChangedByEc(int before, int after)
+    {
+        bool curveMode;
+        lock (_settingsLock) curveMode = _settings.FanMode == "curve";
+        if (!curveMode) return after;   // firmware mode: the EC's own mode switch is the expected behavior
+
+        _log.LogInformation("Mode button (EC changed 0x751 0x{Before:X2} -> 0x{After:X2}).", before, after);
+        OnModeButton();
+        return after;
+    }
+
+    private AppSettings SetModeButton(EnabledArgs a)
+    {
+        lock (_settingsLock)
+        {
+            var next = _settings with { ModeButtonCyclesCurves = a.Enabled };
+            _store.Save(next);
+            _settings = next;
+            _log.LogInformation("Mode button cycles curves: {Enabled}", a.Enabled);
+            return next;
+        }
+    }
+
+    private int ReadSafe(ushort address)
+    {
+        try { return _ec.Read(address); }
+        catch (Exception ex) when (ex is ManagementException or InvalidOperationException) { return -1; }
+    }
+
+    /// <summary>
+    /// Operational mode button. In curve mode: next curve (alphabetical, wraps) + notification for the UI.
+    /// In firmware mode AvellCC does nothing (the EC switches its own operational mode, as without AvellCC).
+    /// </summary>
+    public ControlStatus OnModeButton()
+    {
+        try
+        {
+            lock (_settingsLock)
+            {
+                var now = DateTime.UtcNow;
+                if (now - _lastModeButton < ModeButtonDebounce) return Status;
+                _lastModeButton = now;
+                if (_settings.FanMode != "curve" || !_settings.ModeButtonCyclesCurves)
+                {
+                    _log.LogInformation("Mode button: ignored ({Reason}).", _settings.FanMode != "curve" ? "firmware mode" : "turned off in Settings");
+                    return Status;
+                }
+                var next = Cycle.Next(_store.ListCurves().Select(c => c.Name).ToList(), _settings.CurveName);
+                if (next is null) return Status;
+                SetFanMode(new SetFanModeArgs("curve", next));
+                _modeSwitchCurve = next;
+                _modeSwitchCount++;
+                _log.LogInformation("Mode button: curve {Curve}.", next);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Mode button: failed to switch the curve.");
+        }
+        return Status;
+    }
+
+    // ------------------------------------------------------------------ keyboard profiles
+
+    private AppSettings SaveKeyboardProfile(KeyboardProfile profile)
+    {
+        lock (_settingsLock)
+        {
+            profile.Keyboard.ValidateFourZone();
+            var next = _settings.WithKeyboardProfile(profile);
+            _store.Save(next);
+            _settings = next;
+            _log.LogInformation("Keyboard profile '{Name}' saved.", profile.Name);
+            return next;
+        }
+    }
+
+    private AppSettings DeleteKeyboardProfile(NameArgs a)
+    {
+        lock (_settingsLock)
+        {
+            var next = _settings.WithoutKeyboardProfile(a.Name);
+            _store.Save(next);
+            _settings = next;
+            return next;
+        }
+    }
+
+    private AppSettings ApplyKeyboardProfile(NameArgs a)
+    {
+        lock (_settingsLock)
+        {
+            var profile = _settings.FindKeyboardProfile(a.Name) ?? throw new ArgumentException($"Keyboard profile '{a.Name}' not found.");
+            return SetKeyboard(profile.Keyboard, profile.Name);
+        }
     }
 
     /// <summary>UI commands (pipe).</summary>
@@ -108,12 +262,17 @@ public sealed class ControlHub : IDisposable
         object? result = command switch
         {
             Protocol.Commands.Info => new ServiceInfo(Protocol.Version, typeof(ControlHub).Assembly.GetName().Version?.ToString() ?? "?", _options.Simulate, _machine),
-            Protocol.Commands.Status => _loop.Status,
+            Protocol.Commands.Status => Status,   // includes the mode button counter
             Protocol.Commands.GetSettings => _settings,
             Protocol.Commands.ListCurves => _store.ListCurves(),
             Protocol.Commands.SaveCurve => SaveCurve(Arg<FanCurve>(args)),
             Protocol.Commands.SetFanMode => SetFanMode(Arg<SetFanModeArgs>(args)),
             Protocol.Commands.SetKeyboard => SetKeyboard(Arg<KeyboardSettings>(args)),
+            Protocol.Commands.SaveKeyboardProfile => SaveKeyboardProfile(Arg<KeyboardProfile>(args)),
+            Protocol.Commands.DeleteKeyboardProfile => DeleteKeyboardProfile(Arg<NameArgs>(args)),
+            Protocol.Commands.ApplyKeyboardProfile => ApplyKeyboardProfile(Arg<NameArgs>(args)),
+            Protocol.Commands.SetModeButton => SetModeButton(Arg<EnabledArgs>(args)),
+            Protocol.Commands.PressModeButton when _options.Simulate => OnModeButton(),
             Protocol.Commands.FreeMemory => FreeMemory(),
             _ => throw new ArgumentException($"Unknown command: {command}"),
         };
@@ -161,14 +320,17 @@ public sealed class ControlHub : IDisposable
         }
     }
 
-    private AppSettings SetKeyboard(KeyboardSettings keyboard)
+    /// <summary>Applies keyboard settings; <paramref name="profile"/> = name when they come from a saved profile.</summary>
+    private AppSettings SetKeyboard(KeyboardSettings keyboard, string? profile = null)
     {
-        keyboard.Validate();
+        if (profile is null) keyboard.ValidateFourZone();   // new settings from the UI
+        else keyboard.Validate();                           // saved profile: unsupported effects fall back to Wave
+        _log.LogInformation("Keyboard: {Mode} {Effect} (profile {Profile}).", keyboard.Mode, keyboard.Mode == "effect" ? keyboard.EffectiveEffect : "", profile ?? "-");
         lock (_settingsLock)
         {
             using (var kb = new FourZoneKeyboard(_keyboardTransport(), FourZoneKeyboard.DefaultProjectId))
                 keyboard.ApplyTo(kb);
-            var next = _settings with { Keyboard = keyboard };
+            var next = _settings with { Keyboard = keyboard, KeyboardProfile = profile };
             _store.Save(next);
             _settings = next;
             return next;
@@ -217,7 +379,11 @@ public sealed class ControlHub : IDisposable
         }
     }
 
-    public void Dispose() => (_ec as IDisposable)?.Dispose();
+    public void Dispose()
+    {
+        _events?.Dispose();
+        (_ec as IDisposable)?.Dispose();
+    }
 
     /// <summary>Fake keyboard for simulation mode: only logs the packets.</summary>
     private sealed class LoggingTransport(ILogger log) : IFeatureTransport
