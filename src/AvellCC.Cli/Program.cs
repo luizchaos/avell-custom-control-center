@@ -28,6 +28,7 @@ try
         ["sys"] => Sys(3),
         ["sys", var n] => Sys(int.Parse(n, CultureInfo.InvariantCulture)),
         ["kb", ..] => Keyboard(rawBytes ? [.. args[1..], "--raw"] : args[1..]),
+        ["lb", ..] => Keyboard(rawBytes ? [.. args[1..], "--raw"] : args[1..], lightbar: true),
         ["fan", "preview", var path] => Preview(FanCurve.Load(path)),
         _ => Ec(args, rawBytes),
     };
@@ -104,6 +105,51 @@ static int Ec(string[] args, bool rawBytes)
                 });
                 Console.WriteLine($"{row:X4}:  {string.Join(' ', cells)}");
             }
+            return 0;
+        }
+
+        case ["ec", "lightbar"]:
+            // READ-ONLY. Vendor MySettingManager: 0x768 bit 1 = light bar on; 0x767 bit 1 = toggle trigger.
+            PrintLightbarRegisters(ec);
+            return 0;
+
+        case ["ec", "lightbar", "toggle", "--yes"]:
+        {
+            // Vendor MySettingManager.LightBar_Trigger: 0x767 = (0x767 & 0xFD) + 2. The EC toggles the bar and
+            // reports the new state in 0x768 bit 1.
+            var running = Busy();
+            if (running.Length > 0) throw new VendorRunningException(running);
+            var lbStore = new EcRegisterBackupStore(name: "ec-lightbar");
+            var regs = LightbarRegisters().ToDictionary(a => a, ec.Read);
+            var snapshot = EcRegisterSnapshot.From(regs, ReadMachineInfo(ec)(), running, "avellcc ec lightbar toggle");
+            if (lbStore.TryCreateOriginal(snapshot)) Console.WriteLine($"Original saved: {lbStore.OriginalPath}");
+            Console.WriteLine($"Snapshot: {lbStore.SaveSnapshot(snapshot, "lightbar-toggle")}");
+            PrintLightbarRegisters(ec);
+            var trigger = ec.Read(0x767);
+            ec.Write(0x767, (byte)((trigger & 0xFD) + 2));
+            Console.WriteLine($"Wrote 0x767 = 0x{(trigger & 0xFD) + 2:X2} (trigger). After 1 s:");
+            Thread.Sleep(1000);
+            PrintLightbarRegisters(ec);
+            return 0;
+        }
+
+        case ["ec", "lightbar", "set", var ctrlText, var rText, var gText, var bText, "--yes"]:
+        {
+            // EC light bar (vendor MyRgbLightbarManager): 0x749/0x74A/0x74B = R/G/B level (vendor level 9 = 200/170/180),
+            // 0x748 = control (bit0 app present, bit2 off, bit3 no breathing, bit4 apply, bit7 colorful).
+            var running = Busy();
+            if (running.Length > 0) throw new VendorRunningException(running);
+            var lbStore = new EcRegisterBackupStore(name: "ec-lightbar");
+            var snapshot = EcRegisterSnapshot.From(LightbarRegisters().ToDictionary(a => a, ec.Read), ReadMachineInfo(ec)(), running, "avellcc ec lightbar set");
+            lbStore.TryCreateOriginal(snapshot);
+            lbStore.SaveSnapshot(snapshot, "lightbar-set");
+            static byte Hex(string s) => Convert.ToByte(s.Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            ec.Write(0x749, Hex(rText));
+            ec.Write(0x74A, Hex(gText));
+            ec.Write(0x74B, Hex(bText));
+            ec.Write(0x748, Hex(ctrlText));
+            Thread.Sleep(500);
+            PrintLightbarRegisters(ec);
             return 0;
         }
 
@@ -456,12 +502,49 @@ static string? Monitor(IEcAccess ec, TimeSpan duration, Func<FanSample, (double 
     return null;
 }
 
-static int Keyboard(string[] args)
+static ushort[] LightbarRegisters() => [0x748, 0x749, 0x74A, 0x74B, 0x765, 0x766, 0x767, 0x768, 0x78E];
+
+static void PrintLightbarRegisters(IEcAccess ec)
+{
+    var values = LightbarRegisters().Select(a => $"0x{a:X3}=0x{ec.Read(a):X2}");
+    var status = ec.Read(0x768);
+    Console.WriteLine($"  {string.Join("  ", values)}   → light bar {((status & 0x02) != 0 ? "ON" : "OFF")} (0x768 bit 1)");
+}
+
+// Light bar experiment: vendor sequence LM_ITE_RGB.Set_ITE_Effect_Type_UserMode_Lightbar.
+// 0x08 [2, 0x33 user mode, 0, brightness, 0, 0, 0], then 8 rows: 0x16 row index + 65-byte output report
+// [0, 0, B x21, G x21, R x21]. Every LED gets the same color here.
+static int LightbarFill(Rgb color, int brightnessLevel)
+{
+    using var dev = HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePageLightbar);
+    var level = brightnessLevel < 0 ? Ite8291.BrightnessSteps[^1] : Ite8291.BrightnessSteps[Math.Clamp(brightnessLevel, 0, 4)];
+    dev.SetFeature([0x00, 0x08, 0x02, 0x33, 0x00, level, 0x00, 0x00, 0x00]);
+    Thread.Sleep(20);
+    for (byte row = 0; row < 8; row++)
+    {
+        dev.SetFeature([0x00, 0x16, 0x00, row, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        var data = new byte[65];
+        for (var i = 0; i < 21; i++)
+        {
+            data[2 + i] = color.B;
+            data[23 + i] = color.G;
+            data[44 + i] = color.R;
+        }
+        dev.WriteOutput(data);
+        Thread.Sleep(1);
+    }
+    Console.WriteLine($"Light bar user mode: {color.R:X2}{color.G:X2}{color.B:X2}, brightness {level}.");
+    return 0;
+}
+
+// "kb" = 4-zone keyboard; "lb" = front light bar (same ITE commands on another device, no color correction yet)
+static int Keyboard(string[] args, bool lightbar = false)
 {
     if (args.Length == 0) return Usage();
     var options = Options.Parse(args[1..]);
-    using var kb = new FourZoneKeyboard(HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePage4Zone),
-                                        FourZoneKeyboard.DefaultProjectId, colorCorrection: !options.Raw);
+    if (lightbar && args[0] == "fill" && options.Positional.Count == 1) return LightbarFill(Options.ParseRgb(options.Positional[0]), options.Brightness);
+    using var kb = new FourZoneKeyboard(HidFeatureDevice.Open(Ite8291.VendorId, lightbar ? Ite8291.UsagePageLightbar : Ite8291.UsagePage4Zone),
+                                        FourZoneKeyboard.DefaultProjectId, colorCorrection: !options.Raw && !lightbar);
     switch (args[0])
     {
         case "info":

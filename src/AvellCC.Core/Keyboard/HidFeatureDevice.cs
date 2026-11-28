@@ -66,6 +66,13 @@ public sealed class HidFeatureDevice : IFeatureTransport
             throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_SetFeature failed.");
     }
 
+    /// <summary>Output report (interrupt OUT), e.g. the 65-byte per-LED rows of ITE "user mode".</summary>
+    public void WriteOutput(byte[] report)
+    {
+        if (!Native.WriteFile(_handle, report, report.Length, out var written, IntPtr.Zero) || written != report.Length)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "WriteFile (HID output report) failed.");
+    }
+
     public byte[] GetFeature(byte reportId, int length)
     {
         var buffer = new byte[length];
@@ -142,6 +149,7 @@ public sealed class HidFeatureDevice : IFeatureTransport
         [DllImport("hid.dll")] public static extern int HidP_GetCaps(IntPtr p, ref HIDP_CAPS caps);
         [DllImport("hid.dll", SetLastError = true)] public static extern bool HidD_SetFeature(SafeFileHandle h, byte[] buffer, int length);
         [DllImport("hid.dll", SetLastError = true)] public static extern bool HidD_GetFeature(SafeFileHandle h, byte[] buffer, int length);
+        [DllImport("kernel32.dll", SetLastError = true)] public static extern bool WriteFile(SafeFileHandle h, byte[] buffer, int length, out int written, IntPtr overlapped);
         [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr SetupDiGetClassDevs(ref Guid g, IntPtr enumerator, IntPtr hwnd, int flags);
         [DllImport("setupapi.dll", SetLastError = true)]

@@ -11,6 +11,9 @@ public static class Ite8291
     public const ushort VendorId = 0x048D;
     public const ushort ProductId4Zone = 0xCE00;
     public const ushort UsagePage4Zone = 0xFF12;
+    /// <summary>Front light bar: a second ITE controller (048D:6005, vendor name "MEZone_Lighbar") with the same commands.</summary>
+    public const ushort ProductIdLightbar = 0x6005;
+    public const ushort UsagePageLightbar = 0xFF03;
     public const int FeatureReportLength = 9;
     public const int Zones = 4;
 
