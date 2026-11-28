@@ -200,14 +200,14 @@ Writing the 96-byte table plus verification took ~40 s over WMI; restoring ~45 s
 | `0x768` | Status byte |
 | `0x769–0x76B` | R/G/B level of EC-driven single-zone keyboards |
 | `0x7B9` | Battery charge limit |
-| `0x748–0x74B` | EC light bar (control, R, G, B) |
+| `0x748–0x74B` | EC light bar (control, R, G, B) — see §3.1 |
 
 ## 3. Keyboard RGB — ITE 8291 (HID)
 
 | Device | Interface | Usage page | Role (vendor names) |
 |---|---|---|---|
 | `048D:CE00` rev `0x0002` | `MI_01` | `0xFF12` | `USAGE_PAGE_4Zone` → **4-zone keyboard** |
-| `048D:6005` rev `0x0003` | `MI_01` | `0xFF03` | `USAGE_PAGE_Ligbar` / `ME_2ND` → light bar (unconfirmed) |
+| `048D:6005` rev `0x0003` | `MI_01` | `0xFF03` | `USAGE_PAGE_Ligbar` / `ME_2ND` → light bar (see §3.1; the bar stayed dark) |
 
 Both expose a **9-byte feature report**: `byte[0] = 0x00` (report ID) followed by 8 command bytes, sent with
 `HidD_SetFeature`; queries are read back with `HidD_GetFeature`. No administrator rights needed. The vendor waits
@@ -271,3 +271,25 @@ This laptop (project ID `0x0F`) uses the `else` branch.
 
 To return to the vendor's effect (exact bytes read above): `avellcc kb raw 00 08 02 03 01 24 08 01 01`.
 The palette used by the original Wave (slots 1..7) cannot be read back.
+
+### 3.1 Front light bar — investigated, stays dark (2026-11-27)
+
+The vendor service (`GCUService.exe`) has three light bar paths. All three were reproduced; every command was accepted,
+but **the bar never lit — not even with Avell Custom Control itself running**, so the cause is most likely hardware or
+BIOS on this unit, not the protocol. Since 0.8.0 the app has an **experimental** light bar card (Keyboard tab) built on the HID path below; it is marked untested.
+
+| Path (vendor class) | What it does | Result here |
+|---|---|---|
+| HID light bar (`HIDRGBLightbar`, light bar type `"3"`) | ITE `048D:6005` `MI_01`, usage page `0xFF03`, firmware `15 02`. Same 9-byte feature commands as the keyboard. For colors the vendor uses **user mode**: `0x08 [2, 0x33, 0, brightness, 0, 0, save]`, then 8 rows of `0x16 [0, row]` + a 65-byte output report `[0, 0, B×21, G×21, R×21]` (`LM_ITE_RGB.Set_ITE_Effect_Type_UserMode_Lightbar`, LED map in `ConvertToLightBarMap`, color correction `WKDColor.cheatRGB_HIDLightbar`) | state reads back (`0x88`), LEDs dark |
+| EC RGB light bar (`MyRgbLightbarManager`, type `"2"`) | `0x749/0x74A/0x74B` = R/G/B level (vendor level 9 → 200/170/180, `RGBLightBarTable`); `0x748` control: bit 0 app present, bit 2 off, bit 3 no breathing, bit 4/5 apply, bit 7 colorful | EC clears the apply bit, LEDs dark |
+| EC on/off (`MySettingManager.LightBar_Trigger`) | `0x767 = (0x767 & 0xFD) + 2` toggles; `0x768` bit 1 = on | trigger consumed, `0x768` bit 1 stays 0 |
+
+Support flags: `HKLM\SOFTWARE\OEM\GamingCenter2\Support` `LightBar=1`, `RGBLB=1`; EC `0x78E` bit 4 (EC RGB light bar)
+= 0. Original EC values (before any write): `0x748=0x80`, `0x749–0x74B=0`, saved in
+`C:\ProgramData\AvellCC\backup\ec-lightbar.original.json`. Original HID state: `ctrl=Welcome effect=0x20 speed=5
+brightness=36` (restore: `avellcc lb raw 00 08 03 20 05 24 08 00 00`).
+
+AvellCC implementation (experimental): `Core/Keyboard/Lightbar.cs` (HID path: user mode for a single color, firmware effects Breathing/Wave/Rainbow/Flash/Mix, off; same color on every LED, no per-model map or color correction), `LightbarSettings` in `settings.json`, pipe `setLightbar`, `info.lightbarPresent`. The EC paths (`0x748`–`0x74B`, `0x767` trigger) are not used by the app.
+
+CLI used for the experiments: `avellcc lb info|color|fill|raw` (HID, no admin) and
+`avellcc ec lightbar [toggle --yes | set <ctrl> <r> <g> <b> --yes]` (EC, admin, refused while the service runs).

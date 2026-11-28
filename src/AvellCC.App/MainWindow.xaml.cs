@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private bool _polling;
     private bool _loadingUi;
     private int? _lastModeSwitch;
+    private string _lbColor = "FFFFFF";
 
     public event Action<ControlStatus?>? StatusUpdated;
 
@@ -61,6 +62,9 @@ public partial class MainWindow : Window
         _gpu.CollectionChanged += (_, _) => DrawChart();
         KbEffectCombo.ItemsSource = Ite8291.FourZoneEffects.Select(e => e.ToString()).ToArray();   // only effects that work on 4 zones
         KbEffectCombo.SelectedItem = nameof(Ite8291.Effect.Wave);
+        LbEffectCombo.ItemsSource = Lightbar.Effects.Select(e => e.ToString()).ToArray();
+        LbEffectCombo.SelectedItem = nameof(Ite8291.Effect.Wave);
+        LbModeCombo.SelectedIndex = 0;
         KbModeCombo.SelectedIndex = 0;
         KbDirectionCombo.SelectedIndex = 0;
         StartupCheck.IsChecked = StartupRegistration.IsEnabled;
@@ -124,6 +128,7 @@ public partial class MainWindow : Window
         for (var i = 0; i < buttons.Length; i++) buttons[i].ToolTip = Loc.T("kb.zone", i + 1);
         UpdateModeHelp();
         UpdateKbButtons();
+        UpdateLightbarUi();
         if (_status is not null) ShowStatus(_status);
         else if (Banner.Visibility == Visibility.Visible) ShowNoService();
     }
@@ -142,6 +147,7 @@ public partial class MainWindow : Window
             CurveCombo.SelectedItem = _curves.FirstOrDefault(c => c.Name == _settings.CurveName) ?? _curves.FirstOrDefault();
             LoadEditor(CurveCombo.SelectedItem as FanCurve);
             if (_settings.Keyboard is { } kb) LoadKeyboard(kb);
+            if (_settings.Lightbar is { } lb) LoadLightbar(lb);
             LoadKeyboardProfiles();
             ModeButtonCheck.IsChecked = _settings.ModeButtonCyclesCurves;
             UpdateModeHelp();
@@ -465,6 +471,55 @@ public partial class MainWindow : Window
         });
     }
 
+    // ------------------------------------------------------------------ light bar (experimental)
+
+    private string LbMode => (LbModeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "static";
+
+    private void LoadLightbar(LightbarSettings lb)
+    {
+        foreach (ComboBoxItem item in LbModeCombo.Items) if ((string)item.Tag == lb.Mode) LbModeCombo.SelectedItem = item;
+        _lbColor = lb.Color;
+        LbBrightness.Value = lb.Brightness;
+        LbSpeed.Value = lb.Speed;
+        LbEffectCombo.SelectedItem = lb.Effect;
+        UpdateLightbarUi();
+    }
+
+    private void UpdateLightbarUi()
+    {
+        if (LbStatus is null) return;
+        var present = _info?.LightbarPresent == true;
+        LbControls.IsEnabled = LbApplyButton.IsEnabled = present;
+        LbStatus.Text = present ? "" : Loc.T(_info is null ? "lb.unknown" : "lb.notFound");
+        LbColorButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#" + _lbColor));
+        LbColorButton.IsEnabled = LbMode != "off";
+        LbEffectCombo.IsEnabled = LbSpeed.IsEnabled = LbMode == "effect";
+    }
+
+    private void LbMode_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateLightbarUi();
+
+    private void LbColor_Click(object sender, RoutedEventArgs e)
+    {
+        var current = KeyboardSettings.ParseColor(_lbColor);
+        using var dialog = new Forms.ColorDialog { FullOpen = true, Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B) };
+        if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
+        _lbColor = $"{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+        UpdateLightbarUi();
+    }
+
+    private async void ApplyLightbar_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = new LightbarSettings
+        {
+            Mode = LbMode,
+            Color = _lbColor,
+            Brightness = (int)LbBrightness.Value,
+            Effect = (string?)LbEffectCombo.SelectedItem ?? nameof(Ite8291.Effect.Wave),
+            Speed = (int)LbSpeed.Value,
+        };
+        await Run(async () => { _settings = await _client.SetLightbarAsync(settings); });
+    }
+
     // ------------------------------------------------------------------ keyboard profiles
 
     /// <summary>Picking a profile from the list applies it right away.</summary>
@@ -543,6 +598,7 @@ public partial class MainWindow : Window
     public async Task CaptureTabsAsync(string directory)
     {
         System.IO.Directory.CreateDirectory(directory);
+        Height = Math.Max(Height, SystemParameters.WorkArea.Height);   // show as much of the long tabs as fits
         await Task.Delay(4000);      // give the first status and settings time to arrive
         for (var i = 0; i < Tabs.Items.Count; i++)
         {

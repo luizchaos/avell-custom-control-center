@@ -32,6 +32,8 @@ public sealed class AvellClient(string pipeName = Protocol.PipeName, int connect
         CallAsync<AppSettings>(Protocol.Commands.DeleteKeyboardProfile, new NameArgs(name), c);
     public Task<AppSettings> ApplyKeyboardProfileAsync(string name, CancellationToken c = default) =>
         CallAsync<AppSettings>(Protocol.Commands.ApplyKeyboardProfile, new NameArgs(name), c);
+    public Task<AppSettings> SetLightbarAsync(LightbarSettings lightbar, CancellationToken c = default) =>
+        CallAsync<AppSettings>(Protocol.Commands.SetLightbar, lightbar, c);
     public Task<AppSettings> SetModeButtonAsync(bool enabled, CancellationToken c = default) =>
         CallAsync<AppSettings>(Protocol.Commands.SetModeButton, new EnabledArgs(enabled), c);
     public Task<ControlStatus> PressModeButtonAsync(CancellationToken c = default) =>

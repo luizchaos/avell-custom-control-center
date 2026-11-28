@@ -160,6 +160,7 @@
 
             <!-- ============ KEYBOARD ============ -->
             <TabItem Header="{l:Tr tab.keyboard}" Tag="keyboard">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="8" MaxWidth="640" HorizontalAlignment="Left">
                     <!-- Named presets: pick one to apply it, or type a name and save the settings below -->
                     <Border Style="{StaticResource Card}">
@@ -233,7 +234,50 @@
                             <Button Content="{l:Tr kb.apply}" HorizontalAlignment="Left" Click="ApplyKeyboard_Click"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- Front light bar: experimental, never seen working on the A65 LIV (docs/HARDWARE.md §3.1) -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="{l:Tr lb.title}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource Warn}" CornerRadius="4" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{l:Tr lb.experimental}" Foreground="#16181D" FontSize="11" FontWeight="SemiBold"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10" Text="{l:Tr lb.warning}"/>
+                            <Grid x:Name="LbControls">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Label Content="{l:Tr kb.mode}"/>
+                                <ComboBox x:Name="LbModeCombo" Grid.Column="1" Margin="0,0,0,10" SelectionChanged="LbMode_SelectionChanged">
+                                    <ComboBoxItem Content="{l:Tr lb.mode.static}" Tag="static"/>
+                                    <ComboBoxItem Content="{l:Tr lb.mode.effect}" Tag="effect"/>
+                                    <ComboBoxItem Content="{l:Tr lb.mode.off}" Tag="off"/>
+                                </ComboBox>
+                                <Label Grid.Row="1" Content="{l:Tr lb.color}"/>
+                                <Button x:Name="LbColorButton" Grid.Row="1" Grid.Column="1" Width="56" Height="32" HorizontalAlignment="Left" Margin="0,0,0,10" Click="LbColor_Click"/>
+                                <Label Grid.Row="2" Content="{l:Tr kb.brightness}"/>
+                                <Slider x:Name="LbBrightness" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="3" Margin="0,0,0,10"/>
+                                <Label Grid.Row="3" Content="{l:Tr kb.effect}"/>
+                                <ComboBox x:Name="LbEffectCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10"/>
+                                <Label Grid.Row="4" Content="{l:Tr kb.speed}"/>
+                                <Slider x:Name="LbSpeed" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight" Value="2" Margin="0,0,0,10"/>
+                            </Grid>
+                            <TextBlock x:Name="LbStatus" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <Button x:Name="LbApplyButton" Content="{l:Tr lb.apply}" HorizontalAlignment="Left" Click="ApplyLightbar_Click"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- ============ SETTINGS ============ -->

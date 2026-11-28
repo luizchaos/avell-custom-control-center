@@ -17,6 +17,8 @@ public sealed record AppSettings
     [JsonPropertyName("keyboardProfiles")] public KeyboardProfile[] KeyboardProfiles { get; init; } = [];
     /// <summary>Profile last applied; null after a manual change.</summary>
     [JsonPropertyName("keyboardProfile")] public string? KeyboardProfile { get; init; }
+    /// <summary>Front light bar (experimental); null = the service leaves it alone.</summary>
+    [JsonPropertyName("lightbar")] public LightbarSettings? Lightbar { get; init; }
     /// <summary>In curve mode, the operational mode button switches to the next curve.</summary>
     [JsonPropertyName("modeButtonCyclesCurves")] public bool ModeButtonCyclesCurves { get; init; } = true;
 
@@ -27,6 +29,7 @@ public sealed record AppSettings
         if (FanMode is not ("firmware" or "curve")) throw new ArgumentException($"Invalid fanMode: {FanMode}");
         SettingsStore.ValidateName(CurveName);
         Keyboard?.Validate();
+        Lightbar?.Validate();
         if (KeyboardProfiles.Length > MaxKeyboardProfiles) throw new ArgumentException($"At most {MaxKeyboardProfiles} keyboard profiles.");
         foreach (var p in KeyboardProfiles) p.Validate();
         var duplicate = KeyboardProfiles.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
