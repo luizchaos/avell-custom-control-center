@@ -29,6 +29,8 @@ public sealed class ControlHub : IDisposable
     private readonly SettingsStore _store;
     private readonly FanControlLoop _loop;
     private readonly Func<IFeatureTransport> _keyboardTransport;
+    private readonly Func<IFeatureTransport> _lightbarTransport;
+    private bool _lightbarPresent;
     private readonly string _machine;
     private readonly object _settingsLock = new();
     private AppSettings _settings = new();
@@ -59,6 +61,23 @@ public sealed class ControlHub : IDisposable
         _keyboardTransport = options.Simulate
             ? () => new LoggingTransport(log)
             : () => HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePage4Zone);
+        _lightbarTransport = options.Simulate
+            ? () => new LoggingTransport(log, "light bar")
+            : () => HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePageLightbar);
+    }
+
+    /// <summary>Whether the light bar's ITE controller can be opened (checked once at start).</summary>
+    private bool DetectLightbar()
+    {
+        try
+        {
+            using var _ = _lightbarTransport();
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Loop status plus the mode button counter (the UI notifies when it changes).</summary>
@@ -79,8 +98,10 @@ public sealed class ControlHub : IDisposable
         }
         ApplyFanMode(_settings);
         ApplyKeyboard(_settings.Keyboard);
-        _log.LogInformation("AvellCC started ({Machine}). Fans: {Mode} {Curve}. Simulation: {Sim}",
-                            _machine, _settings.FanMode, _settings.CurveName, _options.Simulate);
+        _lightbarPresent = DetectLightbar();
+        ApplyLightbar(_settings.Lightbar);
+        _log.LogInformation("AvellCC started ({Machine}). Fans: {Mode} {Curve}. Light bar controller: {Lightbar}. Simulation: {Sim}",
+                            _machine, _settings.FanMode, _settings.CurveName, _lightbarPresent ? "found" : "not found", _options.Simulate);
     }
 
     public ControlStatus Tick()
@@ -115,6 +136,7 @@ public sealed class ControlHub : IDisposable
         _log.LogInformation("Resume: re-applying settings.");
         _loop.Resume();
         ApplyKeyboard(_settings.Keyboard);
+        ApplyLightbar(_settings.Lightbar);
     }
 
     public void Shutdown()
@@ -261,7 +283,8 @@ public sealed class ControlHub : IDisposable
     {
         object? result = command switch
         {
-            Protocol.Commands.Info => new ServiceInfo(Protocol.Version, typeof(ControlHub).Assembly.GetName().Version?.ToString() ?? "?", _options.Simulate, _machine),
+            Protocol.Commands.Info => new ServiceInfo(Protocol.Version, typeof(ControlHub).Assembly.GetName().Version?.ToString() ?? "?", _options.Simulate, _machine, _lightbarPresent),
+            Protocol.Commands.SetLightbar => SetLightbar(Arg<LightbarSettings>(args)),
             Protocol.Commands.Status => Status,   // includes the mode button counter
             Protocol.Commands.GetSettings => _settings,
             Protocol.Commands.ListCurves => _store.ListCurves(),
@@ -343,6 +366,37 @@ public sealed class ControlHub : IDisposable
         else _loop.UseFirmware();
     }
 
+    /// <summary>Experimental light bar: applies and saves. Throws if the controller is missing.</summary>
+    private AppSettings SetLightbar(LightbarSettings lightbar)
+    {
+        lightbar.Validate();
+        if (!_lightbarPresent) throw new InvalidOperationException("Light bar controller (048D:6005) not found.");
+        lock (_settingsLock)
+        {
+            using (var bar = new Lightbar(_lightbarTransport()))
+                lightbar.ApplyTo(bar);
+            var next = _settings with { Lightbar = lightbar };
+            _store.Save(next);
+            _settings = next;
+            _log.LogInformation("Light bar (experimental): {Mode} {Color} {Effect}.", lightbar.Mode, lightbar.Color, lightbar.Mode == "effect" ? lightbar.Effect : "");
+            return next;
+        }
+    }
+
+    private void ApplyLightbar(LightbarSettings? lightbar)
+    {
+        if (lightbar is null || !_lightbarPresent) return;
+        try
+        {
+            using var bar = new Lightbar(_lightbarTransport());
+            lightbar.ApplyTo(bar);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to apply light bar settings.");
+        }
+    }
+
     private void ApplyKeyboard(KeyboardSettings? keyboard)
     {
         if (keyboard is null) return;
@@ -386,9 +440,10 @@ public sealed class ControlHub : IDisposable
     }
 
     /// <summary>Fake keyboard for simulation mode: only logs the packets.</summary>
-    private sealed class LoggingTransport(ILogger log) : IFeatureTransport
+    private sealed class LoggingTransport(ILogger log, string device = "keyboard") : IFeatureTransport, IOutputTransport
     {
-        public void SetFeature(byte[] report) => log.LogInformation("[sim] HID {Report}", Convert.ToHexString(report));
+        public void SetFeature(byte[] report) => log.LogInformation("[sim] {Device} HID {Report}", device, Convert.ToHexString(report));
+        public void WriteOutput(byte[] report) => log.LogInformation("[sim] {Device} output {Length} bytes", device, report.Length);
         public byte[] GetFeature(byte reportId, int length) => new byte[length];
         public void Dispose() { }
     }

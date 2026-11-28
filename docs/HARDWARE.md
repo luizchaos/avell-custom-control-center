@@ -276,7 +276,7 @@ The palette used by the original Wave (slots 1..7) cannot be read back.
 
 The vendor service (`GCUService.exe`) has three light bar paths. All three were reproduced; every command was accepted,
 but **the bar never lit — not even with Avell Custom Control itself running**, so the cause is most likely hardware or
-BIOS on this unit, not the protocol. Nothing in the AvellCC app uses the light bar.
+BIOS on this unit, not the protocol. Since 0.8.0 the app has an **experimental** light bar card (Keyboard tab) built on the HID path below; it is marked untested.
 
 | Path (vendor class) | What it does | Result here |
 |---|---|---|
@@ -288,6 +288,8 @@ Support flags: `HKLM\SOFTWARE\OEM\GamingCenter2\Support` `LightBar=1`, `RGBLB=1`
 = 0. Original EC values (before any write): `0x748=0x80`, `0x749–0x74B=0`, saved in
 `C:\ProgramData\AvellCC\backup\ec-lightbar.original.json`. Original HID state: `ctrl=Welcome effect=0x20 speed=5
 brightness=36` (restore: `avellcc lb raw 00 08 03 20 05 24 08 00 00`).
+
+AvellCC implementation (experimental): `Core/Keyboard/Lightbar.cs` (HID path: user mode for a single color, firmware effects Breathing/Wave/Rainbow/Flash/Mix, off; same color on every LED, no per-model map or color correction), `LightbarSettings` in `settings.json`, pipe `setLightbar`, `info.lightbarPresent`. The EC paths (`0x748`–`0x74B`, `0x767` trigger) are not used by the app.
 
 CLI used for the experiments: `avellcc lb info|color|fill|raw` (HID, no admin) and
 `avellcc ec lightbar [toggle --yes | set <ctrl> <r> <g> <b> --yes]` (EC, admin, refused while the service runs).

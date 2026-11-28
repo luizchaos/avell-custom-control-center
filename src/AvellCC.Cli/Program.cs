@@ -516,24 +516,10 @@ static void PrintLightbarRegisters(IEcAccess ec)
 // [0, 0, B x21, G x21, R x21]. Every LED gets the same color here.
 static int LightbarFill(Rgb color, int brightnessLevel)
 {
-    using var dev = HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePageLightbar);
-    var level = brightnessLevel < 0 ? Ite8291.BrightnessSteps[^1] : Ite8291.BrightnessSteps[Math.Clamp(brightnessLevel, 0, 4)];
-    dev.SetFeature([0x00, 0x08, 0x02, 0x33, 0x00, level, 0x00, 0x00, 0x00]);
-    Thread.Sleep(20);
-    for (byte row = 0; row < 8; row++)
-    {
-        dev.SetFeature([0x00, 0x16, 0x00, row, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        var data = new byte[65];
-        for (var i = 0; i < 21; i++)
-        {
-            data[2 + i] = color.B;
-            data[23 + i] = color.G;
-            data[44 + i] = color.R;
-        }
-        dev.WriteOutput(data);
-        Thread.Sleep(1);
-    }
-    Console.WriteLine($"Light bar user mode: {color.R:X2}{color.G:X2}{color.B:X2}, brightness {level}.");
+    var level = brightnessLevel < 0 ? 4 : Math.Clamp(brightnessLevel, 0, 4);
+    using var bar = new Lightbar(HidFeatureDevice.Open(Ite8291.VendorId, Ite8291.UsagePageLightbar));
+    bar.Static(color, level, save: false);
+    Console.WriteLine($"Light bar user mode: {color.R:X2}{color.G:X2}{color.B:X2}, brightness level {level}.");
     return 0;
 }
 

@@ -10,6 +10,8 @@ built on the **Uniwill** (TongFang-family) platform.
   100 % emergency override, and automatic hand-back to the firmware on stop, sleep or error.
 - **Keyboard RGB (4 zones)** — single color, one color per zone, or firmware effects with your own palette;
   save them as named **profiles** and switch from the app or the tray.
+- **Front light bar (experimental, untested)** — color, effects and off for the Avell light bar, built from the vendor's
+  protocol; on the test laptop the bar never lit, not even with the vendor app. Reports welcome.
 - **Operational mode button** — with an AvellCC curve active, the laptop's mode button cycles through your fan
   curves and shows a notification.
 - **Dashboard** — CPU and per-GPU usage rings with EC temperatures, memory, disk activity, VRAM, drive space,

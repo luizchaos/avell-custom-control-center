@@ -12,12 +12,18 @@ public interface IFeatureTransport : IDisposable
     byte[] GetFeature(byte reportId, int length);
 }
 
+/// <summary>HID output reports (interrupt OUT), used by ITE "user mode" (per-LED colors).</summary>
+public interface IOutputTransport
+{
+    void WriteOutput(byte[] report);
+}
+
 /// <summary>
 /// HID device opened by VID + usage page (e.g. 048D + 0xFF12 = 4-zone keyboard).
 /// Does not require administrator rights.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class HidFeatureDevice : IFeatureTransport
+public sealed class HidFeatureDevice : IFeatureTransport, IOutputTransport
 {
     private readonly SafeFileHandle _handle;
     public string Path { get; }
